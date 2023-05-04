@@ -1,0 +1,141 @@
+import psycopg
+import h5py
+import numpy as np
+from pathlib import Path
+import dtcc_io as io
+from dtcc_model import Bounds
+
+from time import sleep
+
+import argparse
+import sys
+
+
+# Connect to the database
+def db_connect(
+    user="postgres", host="localhost", password="postgres", dbname="elevationAPI"
+):
+    conn = psycopg.connect(
+        f"dbname={dbname} user={user} host={host} password={password}"
+    )
+    cur = conn.cursor()
+    return conn, cur
+
+
+def load_las(las_file):
+    pointcloud = io.load_pointcloud(las_file, points_classification_only=True)
+    pointcloud = pointcloud.remove_global_outliers(margin=3)
+    return pointcloud
+
+
+def bounds_from_filename(filename):
+    filename = filename.split(".")[0]
+    parts = filename.split("_")
+    y_root = int(parts[1])
+    x_root = int(parts[2])
+    y_offset = int(parts[3][:2])
+    x_offset = int(parts[3][2:])
+    xmin = x_root * 10000 + (x_offset * 100)
+    ymin = y_root * 10000 + y_offset * 100
+    xmax = xmin + 2500
+    ymax = ymin + 2500
+    return Bounds(xmin, ymin, xmax, ymax)
+
+
+def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
+    hdf5_file = hdf5_dir / f"{region}.hdf5"
+    lock_file = hdf5_dir / f"{region}.lock"
+    dset = h5py.File(hdf5_file, "a")
+    while True:
+        if lock_file.exists():
+            sleep(0.2)
+            continue
+        else:
+            lock_file.touch()
+            try:
+                dset.create_dataset(tileset, data=dem, compression="lzf")
+            except UnboundLocalError as e:
+                if overwrite:
+                    dset[tileset][...] = dem
+                else:
+                    print(f"dataset {tileset} already exists")
+                    dset.close()
+                    lock_file.unlink()
+                    return False
+            except Exception as e:
+                print(f"error writing to hdf5: {e}")
+                dset.close()
+                lock_file.unlink()
+                return False
+            lock_file.unlink()
+            dset.close()
+            break
+    return True
+
+
+def add_to_db(conn, curr, region, tileset, bounds, transform):
+    insert_query = """INSERT INTO metadata (region,tileset,a,b,c,d,e,f,bounds) 
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,
+    st_makebox2d(st_makepoint(%s,%s),st_makepoint(%s,%s)))"""
+
+    curr.execute(
+        insert_query,
+        (
+            region,
+            tileset,
+            transform.a,
+            transform.b,
+            transform.c,
+            transform.d,
+            transform.e,
+            transform.f,
+            bounds.xmin,
+            bounds.ymin,
+            bounds.xmax,
+            bounds.ymax,
+        ),
+    )
+    conn.commit()
+    return
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert las files to hdf5 database")
+    parser.add_argument("las_file", type=Path, help="las file")
+    parser.add_argument("hdf5_dir", type=Path, help="output hdf5 directory")
+    parser.add_argument("--window", type=int, default=3, help="window size")
+    parser.add_argument("--cell-size", type=float, default=1, help="cell size")
+    parser.add_argument("--radius", type=float, default=0, help="radius")
+
+    args = parser.parse_args()
+
+    if not args.las_file.exists():
+        print("las file does not exist")
+        sys.exit(1)
+
+    if not args.hdf5_dir.exists():
+        args.hdf5_dir.mkdir(parents=True)
+
+    # Connect to the database
+    conn, cur = db_connect()
+
+    file_parts = args.las_file.stem.split("_")
+    region = file_parts[0]
+    tileset = "_".join(file_parts[1:])
+    bounds = bounds_from_filename(args.las_file.name)
+    # Load the las file
+    pc = load_las(args.las_file)
+    ground_dem = pc.rasterize(
+        args.cell_size,
+        bounds=bounds,
+        window_size=args.window,
+        radius=args.radius,
+        ground_only=True,
+    )
+    transform = ground_dem.georef
+    succ_write = write_to_hdf5(ground_dem.data, args.hdf5_dir, region, tileset, bounds)
+    if succ_write:
+        add_to_db(conn, cur, region, tileset, bounds, transform)
+
+    # Close the database connection
+    conn.close()
