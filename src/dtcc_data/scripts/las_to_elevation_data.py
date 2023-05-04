@@ -29,10 +29,8 @@ def load_las(las_file):
 
 
 def bounds_from_filename(filename):
-    print(f"filename: {filename}")
     filename = filename.split(".")[0]
     parts = filename.split("_")
-    print(f"parts: {parts}")
     y_root = int(parts[1])
     x_root = int(parts[2])
     y_offset = int(parts[3][:2])
@@ -47,9 +45,14 @@ def bounds_from_filename(filename):
 def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
     hdf5_file = hdf5_dir / f"{region}.hdf5"
     lock_file = hdf5_dir / f"{region}.lock"
+    lock_count = 0
     while True:
         if lock_file.exists():
             sleep(0.2)
+            lock_count += 1
+            if lock_count > 100:
+                print(f"lock file {lock_file} exists for too long, giving up")
+                return False
             continue
         else:
             lock_file.touch()
