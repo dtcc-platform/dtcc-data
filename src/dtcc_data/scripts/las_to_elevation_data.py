@@ -106,6 +106,11 @@ def main():
     parser.add_argument("--window", type=int, default=3, help="window size")
     parser.add_argument("--cell-size", type=float, default=1, help="cell size")
     parser.add_argument("--radius", type=float, default=0, help="radius")
+    parser.add_argument("--overwrite", action="store_true", help="overwrite hdf5")
+    parser.add_argument("--dbuser", type=str, default="postgres", help="db user")
+    parser.add_argument("--dbhost", type=str, default="localhost", help="db host")
+    parser.add_argument("--dbpassword", type=str, default="postgres", help="db password")
+    parser.add_argument("--dbname", type=str, default="elevationAPI", help="db name")
 
     args = parser.parse_args()
 
@@ -117,7 +122,12 @@ def main():
         args.hdf5_dir.mkdir(parents=True)
 
     # Connect to the database
-    conn, cur = db_connect()
+    conn, cur = db_connect(
+        user=args.dbuser,
+        host=args.dbhost,
+        password=args.dbpassword,
+        dbname=args.dbname,
+    )
 
     file_parts = args.las_file.stem.split("_")
     region = file_parts[0]
