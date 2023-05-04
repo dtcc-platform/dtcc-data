@@ -44,19 +44,18 @@ def bounds_from_filename(filename):
 
 def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
     hdf5_file = hdf5_dir / f"{region}.hdf5"
-    lock_file = hdf5_dir / f"{region}.lock"
     lock_count = 0
     while True:
-        if lock_file.exists():
-            sleep(0.2)
+        try:
+            dset = h5py.File(hdf5_file, "a")
+        except BlockingIOError as e:
             lock_count += 1
-            if lock_count > 100:
-                print(f"lock file {lock_file} exists for too long, giving up")
+            if lock_count > 20:
+                print("error opening hdf5 file")
                 return False
+            sleep(0.2)
             continue
         else:
-            lock_file.touch()
-            dset = h5py.File(hdf5_file, "a")
             try:
                 dset.create_dataset(tileset, data=dem, compression="lzf")
             except UnboundLocalError as e:
@@ -65,21 +64,21 @@ def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
                 else:
                     print(f"dataset {tileset} already exists")
                     dset.close()
-                    lock_file.unlink()
+
                     return False
             except Exception as e:
                 print(f"error writing to hdf5: {e}")
                 dset.close()
-                lock_file.unlink()
+
                 return False
             dset.close()
-            lock_file.unlink()
+
             break
     return True
 
 
 def add_to_db(conn, curr, region, tileset, bounds, transform):
-    insert_query = """INSERT INTO metadata (region,tileset,a,b,c,d,e,f,bounds) 
+    insert_query = """INSERT INTO elevation_api_metadata (region,tileset,a,b,c,d,e,f,bounds) 
     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,
     st_makebox2d(st_makepoint(%s,%s),st_makepoint(%s,%s)))"""
     try:
