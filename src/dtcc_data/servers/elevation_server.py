@@ -20,8 +20,12 @@ def db_connect(
     return conn
 
 
-@app.route('/elevation/<projection>/<float:x>/<float:y>', methods=['GET'])
+@app.route('/elevation/<projection>/<x>/<y>', methods=['GET'])
 def elevation(projection, x, y):
+    try:
+        x, y = float(x), float(y)
+    except ValueError:
+        return jsonify({'error': 'invalid coordinates'}), 400
     print("elevation", projection, x, y)
     if projection in ['latlon', 'wgs84']:
         x, y = latlon2sweref(x, y)
