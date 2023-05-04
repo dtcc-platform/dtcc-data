@@ -15,4 +15,4 @@ create table elevation_api_metadata (
     primary key (region, tileset)
 );
 
-create index geog_idx on metadata using gist (bounds);
+create index geog_idx on elevation_api_metadata using gist (bounds);
