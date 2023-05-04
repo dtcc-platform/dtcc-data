@@ -1,4 +1,5 @@
 drop table if exists elevation_api_metadata;
+drop index if exists geog_idx;
 
 create table elevation_api_metadata (
     region text not null,

@@ -47,7 +47,6 @@ def bounds_from_filename(filename):
 def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
     hdf5_file = hdf5_dir / f"{region}.hdf5"
     lock_file = hdf5_dir / f"{region}.lock"
-
     while True:
         if lock_file.exists():
             sleep(0.2)
@@ -70,8 +69,8 @@ def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
                 dset.close()
                 lock_file.unlink()
                 return False
-            lock_file.unlink()
             dset.close()
+            lock_file.unlink()
             break
     return True
 
@@ -80,24 +79,28 @@ def add_to_db(conn, curr, region, tileset, bounds, transform):
     insert_query = """INSERT INTO metadata (region,tileset,a,b,c,d,e,f,bounds) 
     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,
     st_makebox2d(st_makepoint(%s,%s),st_makepoint(%s,%s)))"""
-
-    curr.execute(
-        insert_query,
-        (
-            region,
-            tileset,
-            transform.a,
-            transform.b,
-            transform.c,
-            transform.d,
-            transform.e,
-            transform.f,
-            bounds.xmin,
-            bounds.ymin,
-            bounds.xmax,
-            bounds.ymax,
-        ),
-    )
+    try:
+        curr.execute(
+            insert_query,
+            (
+                region,
+                tileset,
+                transform.a,
+                transform.b,
+                transform.c,
+                transform.d,
+                transform.e,
+                transform.f,
+                bounds.xmin,
+                bounds.ymin,
+                bounds.xmax,
+                bounds.ymax,
+            ),
+        )
+    except psycopg.Error as e:
+        print(f"error inserting into db: {e}")
+        conn.rollback()
+        return
     conn.commit()
     return
 
