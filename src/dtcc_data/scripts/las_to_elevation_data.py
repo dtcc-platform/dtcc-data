@@ -123,12 +123,11 @@ def main():
     args = parser.parse_args()
 
     if not args.las_file.exists():
-        print("las file does not exist")
+        print(f"las file does not exist {args.las_file.name}")
         sys.exit(1)
     if args.las_file.name.startswith("."):
-        print("invalid las file name")
+        print(f"invalid las file name {args.las_file.name}")
         sys.exit(1)
-    print(f"las file: {args.las_file}")
 
     if not args.hdf5_dir.exists():
         args.hdf5_dir.mkdir(parents=True)
