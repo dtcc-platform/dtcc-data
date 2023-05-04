@@ -29,8 +29,10 @@ def load_las(las_file):
 
 
 def bounds_from_filename(filename):
+    print(f"filename: {filename}")
     filename = filename.split(".")[0]
     parts = filename.split("_")
+    print(f"parts: {parts}")
     y_root = int(parts[1])
     x_root = int(parts[2])
     y_offset = int(parts[3][:2])
@@ -45,13 +47,14 @@ def bounds_from_filename(filename):
 def write_to_hdf5(dem, hdf5_dir, region, tileset, bounds, overwrite=True):
     hdf5_file = hdf5_dir / f"{region}.hdf5"
     lock_file = hdf5_dir / f"{region}.lock"
-    dset = h5py.File(hdf5_file, "a")
+
     while True:
         if lock_file.exists():
             sleep(0.2)
             continue
         else:
             lock_file.touch()
+            dset = h5py.File(hdf5_file, "a")
             try:
                 dset.create_dataset(tileset, data=dem, compression="lzf")
             except UnboundLocalError as e:
@@ -117,6 +120,10 @@ def main():
     if not args.las_file.exists():
         print("las file does not exist")
         sys.exit(1)
+    if args.las_file.name.startswith("."):
+        print("invalid las file name")
+        sys.exit(1)
+    print(f"las file: {args.las_file}")
 
     if not args.hdf5_dir.exists():
         args.hdf5_dir.mkdir(parents=True)
@@ -130,6 +137,9 @@ def main():
     )
 
     file_parts = args.las_file.stem.split("_")
+    if len(file_parts) < 4:
+        print(f"las file name {args.las_file.name} is not in the correct format")
+        sys.exit(1)
     region = file_parts[0]
     tileset = "_".join(file_parts[1:])
     bounds = bounds_from_filename(args.las_file.name)
@@ -145,7 +155,11 @@ def main():
     transform = ground_dem.georef
     succ_write = write_to_hdf5(ground_dem.data, args.hdf5_dir, region, tileset, bounds)
     if succ_write:
+        print(f"successfully wrote {tileset} to {region}.hdf5")
         add_to_db(conn, cur, region, tileset, bounds, transform)
 
     # Close the database connection
     conn.close()
+
+if __name__ == "__main__":
+    main()
