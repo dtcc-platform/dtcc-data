@@ -5,6 +5,7 @@ import pyproj
 from pathlib import Path
 from affine import Affine
 from time import time
+import sys
 
 import signal
 
@@ -70,8 +71,8 @@ def close_all_handles(signum, frame):
     for handle in hdf5_handles.values():
         print(f"closing {handle}")
         handle.close()
+    sys.exit(0)
 
 
 signal.signal(signal.SIGINT, close_all_handles)
 signal.signal(signal.SIGTERM, close_all_handles)
-signal.signal(signal.SIGKILL, close_all_handles)
