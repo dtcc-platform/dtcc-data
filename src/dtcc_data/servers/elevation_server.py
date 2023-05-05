@@ -73,3 +73,5 @@ def close_all_handles(signum, frame):
 
 
 signal.signal(signal.SIGINT, close_all_handles)
+signal.signal(signal.SIGTERM, close_all_handles)
+signal.signal(signal.SIGKILL, close_all_handles)
