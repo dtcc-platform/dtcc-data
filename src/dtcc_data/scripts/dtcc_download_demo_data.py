@@ -3,20 +3,34 @@
 #
 # This script provides downloading of demo data for DTCC Platform.
 
-import subprocess
-
+# import subprocess
+import urllib.request
+import tarfile
+import os
+from tqdm import tqdm
 from dtcc_data.logging import info
 
 URL = "http://data.dtcc.chalmers.se:5001/demo-data-public"
 PREFIX = "dtcc-demo-data"
 
-def main():
 
+class DownloadProgressBar(tqdm):
+    def update_to(self, b=1, bsize=1, tsize=None):
+        if tsize is not None:
+            self.total = tsize
+        self.update(b * bsize - self.n)
+
+
+def main():
     info("Downloading demo data from data.dtcc.chalmers.se...")
 
-    subprocess.run(["wget", "-O", f"{PREFIX}.tar.gz", URL])
-    subprocess.run(["mkdir", "-p", PREFIX])
-    subprocess.run(["tar", "-vxzf", f"{PREFIX}.tar.gz", "-C", PREFIX])
-    subprocess.run(["rm", "-f", f"{PREFIX}.tar.gz"])
-
+    with DownloadProgressBar(
+        unit="B", unit_scale=True, miniters=1, desc="downmloading demo data"
+    ) as t:
+        urllib.request.urlretrieve(
+            URL, filename=f"{PREFIX}.tar.gz", reporthook=t.update_to
+        )
+    with tarfile.open(f"{PREFIX}.tar.gz", "r:gz") as tar:
+        tar.extractall(PREFIX)
+    os.remove(f"{PREFIX}.tar.gz")
     info(f"Demo data downloaded to directory {PREFIX}")

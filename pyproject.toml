@@ -8,9 +8,9 @@ name = "dtcc-data"
 description = "DTCC Data"
 readme = "README.md"
 authors = [
-    { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
-    { name = "Anders Logg", email = "logg@chalmers.se" },
-    { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se" },
+  { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
+  { name = "Anders Logg", email = "logg@chalmers.se" },
+  { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se" },
 ]
 requires-python = ">=3.8"
 classifiers = [
@@ -24,7 +24,8 @@ dependencies = [
   "Flask",
   "pyproj",
   "psycopg",
-  "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop"
+  "tqdm",
+  "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop",
 ]
 
 [project.optional-dependencies]
