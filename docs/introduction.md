@@ -1,3 +1,0 @@
-# Introduction
-
-Write introduction here.
