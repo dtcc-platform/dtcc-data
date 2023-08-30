@@ -32,6 +32,7 @@ test = ["pytest"]
 
 [project.scripts]
 dtcc-import-elevation-data = "dtcc_data.scripts:las_to_elevation_data.main"
+dtcc-download-demo-data = "dtcc_data.scripts:dtcc_download_demo_data.main"
 
 [tool.cibuildwheel]
 test-command = "pytest {project}/tests"
