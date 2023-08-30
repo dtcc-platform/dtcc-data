@@ -3,6 +3,21 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+version = "0.7.2"
+name = "dtcc-data"
+description = "DTCC Data"
+readme = "README.md"
+authors = [
+    { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
+    { name = "Anders Logg", email = "logg@chalmers.se" },
+    { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se" },
+]
+requires-python = ">=3.8"
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
 dependencies = [
   "numpy >= 1.20.0, < 2.0.0",
   "h5py",
@@ -12,25 +27,12 @@ dependencies = [
   "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop"
 ]
 
-name = "dtcc-data"
-version = "0.0.1"
-description = "DTCC Data"
-readme = "README.md"
-authors = [
-    { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
-]
-requires-python = ">=3.8"
-classifiers = [
-  "Intended Audience :: Science/Research",
-  "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
-]
 [project.optional-dependencies]
 test = ["pytest"]
 
 [project.scripts]
 dtcc-import-elevation-data = "dtcc_data.scripts:las_to_elevation_data.main"
-
+dtcc-download-demo-data = "dtcc_data.scripts:dtcc_download_demo_data.main"
 
 [tool.cibuildwheel]
 test-command = "pytest {project}/tests"
