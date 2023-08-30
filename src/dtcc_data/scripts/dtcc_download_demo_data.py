@@ -24,9 +24,7 @@ class DownloadProgressBar(tqdm):
 def main():
     info("Downloading demo data from data.dtcc.chalmers.se...")
 
-    with DownloadProgressBar(
-        unit="B", unit_scale=True, miniters=1, desc="downmloading demo data"
-    ) as t:
+    with DownloadProgressBar(unit="B", unit_scale=True, miniters=1, desc="") as t:
         urllib.request.urlretrieve(
             URL, filename=f"{PREFIX}.tar.gz", reporthook=t.update_to
         )
