@@ -10,15 +10,14 @@ dependencies = [
   "pyproj",
   "psycopg",
   "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop"
+  "dtcc-model@git+https://github.com/dtcc-platform/dtcc-model.git@develop"
 ]
 
 name = "dtcc-data"
 version = "0.0.1"
 description = "DTCC Data"
 readme = "README.md"
-authors = [
-    { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
-]
+authors = [{ name = "Dag Wästberg", email = "dwastberg@gmail.com" }]
 requires-python = ">=3.8"
 classifiers = [
   "Intended Audience :: Science/Research",
