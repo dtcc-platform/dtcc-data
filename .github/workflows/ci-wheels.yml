@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          path: ./wheelhouse/dtcc-data*.whl
+          path: ./wheelhouse/dtcc_data*.whl
 
   build_sdist:
     name: Build source distribution
@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          path: dist/dtcc_data*.tar.gz
+          path: dist/dtcc-data*.tar.gz
 
   upload_pypi:
     needs: [build_sdist, build_wheels]
