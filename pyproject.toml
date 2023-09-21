@@ -25,7 +25,7 @@ dependencies = [
   "pyproj",
   "psycopg",
   "tqdm",
-  "dtcc-io >= 0.7.16",
+  "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop",
 ]
 
 [project.optional-dependencies]
