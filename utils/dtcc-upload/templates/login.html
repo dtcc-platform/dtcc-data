@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login Page</title>
+</head>
+<body>
+  <h1>Login</h1>
+  <form action="/login" method="POST" id = 'loginForm'>  <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required><br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required><br>
+    <button type="submit">Login</button>
+  </form>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      var formData = new FormData(this);
+      
+      fetch('/login', {
+          method: 'POST',
+          body: JSON.stringify({
+              username: formData.get('username'),
+              password: formData.get('password')
+          }),
+          headers: {
+              'Content-Type': 'application/json'
+          }
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.access_token) {
+              window.location.href = '/home'
+              // Redirect to a secured page or perform other actions as needed
+          } else {
+              alert('Invalid username or password');
+          }
+      })
+      .catch(error => console.error('Error:', error));
+  });
+  </script>
+  
+
+</body>
+</html>
