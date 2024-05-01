@@ -1,91 +1,49 @@
+import math
+import os
+import laspy
 import json
-import time
-from shapely.geometry import box, Polygon
-import geopandas as gpd
 
-def binary_search_within_range(arr, low_bound, high_bound):
-    low, high = 0, len(arr) - 1
-    
-    while low <= high:
-        mid = (low + high) // 2
-        current_value = int(arr[mid])  # Convert the current string to integer
+def get_tile_info(filename):
+    # Open the .laz file and extract min x and y
+    with laspy.open(filename) as file:
+        las = file.read()
+        min_x = float(f"{las.x.min():.2f}")  # Format to 2 decimal places for consistency
+        min_y = float(f"{las.y.min():.2f}")
+        max_x = float(f"{las.x.max():.2f}") 
+        max_y = float(f"{las.y.max():.2f}")
+    return min_x, min_y, max_x, max_y
 
-        if low_bound <= current_value <= high_bound:
-            # Check if it's the first element in the range or the element before is not in the range
-            if mid == 0 or int(arr[mid - 1]) < low_bound:
-                return mid  # Return the index of the element
-            else:
-                high = mid - 1  # Continue to search in the left half
-        elif current_value < low_bound:
-            low = mid + 1  # Search in the right half
-        else:
-            high = mid - 1  # Search in the left half
-    
-    return None  # Index not found if no element within the range
-
-
-
-def findTiles(filename, bounds):
-    
-    f = open(filename, "r")
-    constant = 5000
-    data = json.load(f)
-    x_data = list(data)
-    
-
-    index_x = binary_search_within_range(x_data, bounds[0]-constant, bounds[0])
-    x_min = x_data[index_x]
-    tiles = []
-    while int(x_min) <= bounds[2] + constant:
-        y_data = list(data[x_data[index_x]])
-        index_y = binary_search_within_range(y_data, bounds[1]-constant, bounds[1])
-        y_min = y_data[index_y]
-        previous_max = 0
-        while int(y_min) <= bounds[3] + constant and previous_max < bounds[3] + constant:
-            info = data[x_min][y_min]
-            x = float(x_min)
-            y = float(y_min)
-            width = info["width"]
-            height = info["height"]
-            tile = {
-
-                    "geometry": Polygon([(x,y), (x,y+height), (x+width,y+height), (x+width,y)]),
-                    'laz_path': info['filename']
-            }
-            tiles.append(tile)
-            previous_max = data[x_min][y_min]["width"] + int(y_min)
-            index_y+=1
-            y_min = y_data[index_y]
-        index_x+=1
-        x_min = x_data[index_x]
-    return tiles
-# print(tiles) 
-def findFiles(filename, selected_area):
-    start = time.time()
-    tiles = findTiles(filename, selected_area.bounds)
-    gdf = gpd.GeoDataFrame(tiles)
-    spec1 = time.time()
-    merged_tiles = gdf.unary_union
-    spec2 = time.time()
-    print(spec2-spec1)
-    missing_areas = selected_area.difference(merged_tiles)
-
-    intersecting_tiles = gdf[gdf.intersects(selected_area)]
-    laz_files = intersecting_tiles['laz_path'].tolist()
-
-
-    print(missing_areas)
-    print(len(laz_files))
-    end = time.time()
-    print(end-start)
-    return laz_files
-# import matplotlib.pyplot as plt
-
-# fig, ax = plt.subplots()
-# gdf.plot(ax=ax, color='blue', edgecolor='k')  # Plot existing tiles
-# gpd.GeoSeries([missing_areas]).plot(ax=ax, color='red', alpha=0.5)  # Plot missing areas
-# gpd.GeoSeries([selected_area]).plot(ax=ax, edgecolor='green', facecolor='none', linestyle='--', linewidth=2, label='Selected Area')
-# plt.show()
-    
+def main(directory_path):
+    # Initialize a dictionary to hold the structure
+    files_structure = {}
+    # List all .laz files in the directory
+    files = [f for f in os.listdir(directory_path) if f.endswith('.laz')]
+    atlas = []
+    for filename in files:
+        full_path = os.path.join(directory_path, filename)
+        min_x, min_y, max_x, max_y = get_tile_info(full_path)
         
-       
+        # Check if min_x key exists, if not, initialize it
+        if min_x not in files_structure:
+            files_structure[min_x] = {}
+        
+        # Assign filename to the corresponding min_y key inside the min_x dictionary
+        files_structure[min_x][min_y] = {"filename" : filename, "width" : math.ceil(max_x-min_x), "height" : math.ceil(max_y-min_y)}
+    
+    # Optionally, you might want to sort the dictionaries by their keys (x and then y)
+    # This requires converting the dictionaries into sorted lists of tuples and then back into dictionaries
+    files_structure_sorted = {x: {y: files_structure[x][y] for y in sorted(files_structure[x])} for x in sorted(files_structure)}
+
+    # Save the structured dictionary to a JSON file
+    with open('files_sorted_by_min_xy.json', 'w') as json_file:
+        json.dump(files_structure_sorted, json_file, indent=4)
+    # Optionally, you might want to sort the dictionaries by their keys (x and then y)
+    # This requires converting the dictionaries into sorted lists of tuples and then back into dictionaries
+
+    # Save the structured dictionary to a JSON file
+    with open('test.json', 'w') as json_file:
+        json.dump(atlas, json_file, indent=4)
+
+if __name__ == "__main__":
+    main('data')
+
