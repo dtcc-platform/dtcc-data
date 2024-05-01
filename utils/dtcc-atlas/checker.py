@@ -3,7 +3,7 @@ from prototype import findFiles
 from shapely.geometry import box, Polygon
 
 bounds = box(0, 1000, 500, 1500)
-server_files = findFiles("atlas.json", bounds)
+#server_files = findFiles("atlas.json", bounds)
 local_files = findFiles("tester.json", bounds)
 
 # def filesToSend(local, server):
