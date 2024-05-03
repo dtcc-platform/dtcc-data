@@ -1,6 +1,27 @@
-from flask import Flask, request, jsonify
-
+from flask import Flask, request, jsonify, send_file
+from prototype import findFiles
+from shapely import box
+import tarfile
+import os
 app = Flask(__name__)
+
+
+def create_tarball(output_filename, directory, file_list):
+    """
+    Create a tar.gz archive of specific files within a directory.
+
+    Args:
+    output_filename (str): The path where the tar.gz file will be saved.
+    directory (str): The directory containing the files to be archived.
+    file_list (list): A list of filenames to be included in the archive.
+    """
+    with tarfile.open(output_filename, "w:gz") as tar:
+        for filename in file_list:
+            file_path = os.path.join(directory, filename)
+            if os.path.exists(file_path):
+                tar.add(file_path, arcname=filename)
+            else:
+                print(f"File not found: {file_path}")
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -13,15 +34,22 @@ def process_bounding_box():
     
     # Extract points
     points = data['points']
-    # Themis adds logic for points to lidar filenames here
+    selected_area = box(points[0], points[1], points[2], points[3])
+    serverfiles = findFiles('atlas.json', selected_area)
 
 
     # Here you could add any processing you want on the points
     # For now, let's just return them as they are
     
     return jsonify({
-        'received_points': points
+        'received_points': serverfiles
     })
+    
+@app.route('/download', methods=['POST'])
+def download_tar_file():
+    data_list = request.get_json(())
+    create_tarball("zipped_data/myfiles.tar.gz", "sample_data", data_list["filenames"])
+    return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':
     app.run(debug=True)

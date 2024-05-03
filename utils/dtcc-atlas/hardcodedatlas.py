@@ -12,6 +12,9 @@ for i in range(10):
         y_coord["height"] = height
         y_coord["filename"] = "{i},{j}".format(i = i,j =j)
         x_coord[j*height+i*height] = y_coord  
+        # Create sample file for testing
+        f = open("sample_data/{i},{j}".format(i = i,j =j), "w")
+        f.close()
     atlas[i*width] = x_coord
     
         

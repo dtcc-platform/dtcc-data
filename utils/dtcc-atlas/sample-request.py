@@ -7,10 +7,10 @@ url = 'http://localhost:5000/api/post/boundingbox'
 # Define the payload for the POST request
 payload = {
     'points': [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 1]
+        0,
+        1000,
+        500,
+        1500
     ]
 }
 
