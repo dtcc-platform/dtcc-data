@@ -28,12 +28,11 @@ def binary_search_within_range(arr, low_bound, high_bound):
 def findTiles(filename, bounds):
     
     try:
-        f = open(filename, "r")
-    except:
-        print("Cant Find File " + filename)
-        return False
+        with open(filename, 'r') as file:
+            data = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
     constant = 5000
-    data = json.load(f)
     x_data = list(data)
     
 
@@ -78,7 +77,7 @@ def findTiles(filename, bounds):
 
 def findFiles(filename, selected_area):
     start = time.time()
-    hardcoded_bounds = Polygon([(0,0), (0,1000),(1000,1000),(1000,0)])
+    hardcoded_bounds = Polygon([(375000,6887500), (375000,6895000),(392500,6895000),(392500,6887500)])
     if hardcoded_bounds.covers(selected_area):
         print("Finding laz Files")
     elif hardcoded_bounds.intersects(selected_area):
@@ -103,10 +102,10 @@ def findFiles(filename, selected_area):
     laz_files = intersecting_tiles['laz_path'].tolist()
 
 
-    print(missing_areas)
-    print(len(laz_files))
-    end = time.time()
-    print(end-start)
+    # print(missing_areas)
+    # print(len(laz_files))
+    # end = time.time()
+    # print(end-start)
     return laz_files
 # import matplotlib.pyplot as plt
 

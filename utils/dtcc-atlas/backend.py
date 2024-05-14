@@ -35,7 +35,7 @@ def process_bounding_box():
     # Extract points
     points = data['points']
     selected_area = box(points[0], points[1], points[2], points[3])
-    serverfiles = findFiles('atlas.json', selected_area)
+    serverfiles = findFiles('tester.json', selected_area)
 
 
     # Here you could add any processing you want on the points
@@ -45,10 +45,12 @@ def process_bounding_box():
         'received_points': serverfiles
     })
     
-@app.route('/download', methods=['POST'])
+@app.route('/download', methods=['POST', 'GET'])
 def download_tar_file():
     data_list = request.get_json(())
-    create_tarball("zipped_data/myfiles.tar.gz", "sample_data", data_list["filenames"])
+    if os.path.exists("zipped_data/myfiles.tar.gz"):
+        os.remove("zipped_data/myfiles.tar.gz")
+    create_tarball("zipped_data/myfiles.tar.gz", "../../../atlas_small", data_list["filenames"])
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':

@@ -4,12 +4,53 @@ from shapely.geometry import box, Polygon
 import requests
 import subprocess
 import json
+import os
+import tarfile
+from create_atlas import update_atlas
+from tqdm import tqdm
+import paramiko
+from getpass import getpass
+
 
 url = 'http://localhost:5000'
 
-bounds = box(0, 0, 1000, 1000)
+bounds = box(380000, 6880000, 390000, 6892500)
 server_files = findFiles("atlas.json", bounds)
 local_files = findFiles("tester.json", bounds)
+
+def authenticate(username, password):
+    import pam  # Import here to avoid error if not run on Linux
+    p = pam.pam()
+    return p.authenticate(username, password)
+
+# def authenticate(username, password):
+#     p = pam.pam()
+#     authenticated = p.authenticate(username, password)
+#     if authenticated:
+#         print("Authentication successful!")
+#         get_missing_files(bounds, url)
+#     else:
+#         print("Authentication failed. Check username and password.")
+def setSSH():
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        username = input("Enter your username: ")
+        password = getpass("Enter your password: ")
+        # Try to authenticate locally using PAM
+        if authenticate(username, password):
+            print("PAM authentication successful.")
+            # Connect via SSH
+            ssh.connect("data2.dtcc.chalmers.se", username=username, password=password)
+            stdin, stdout, stderr = ssh.exec_command('uname -a')
+            print(stdout.read().decode()) 
+            flag = True
+        else:
+            print("PAM authentication failed.")
+            flag = False
+    finally:
+        ssh.close()
+    return flag
 
 def filesToSend(local, server):
     local = np.array(local)
@@ -34,40 +75,50 @@ def get_files_from_server(bounding_box, url):
         print('Response:', response.text)
         
     
-def download_missing_files():
-    curl_command = [
-    'curl',
-    '-X', 'POST',
-    '-H', 'Content-Type: application/json',
-    '-d', '@data.json',
-    'http://localhost:5000/download',
-    '-o', 'saved_file.tar'  # If expecting a file in response
-    ]
-    # Execute the curl command
-    result = subprocess.run(curl_command, capture_output=True, text=True)
+def download_missing_files(missing_files):
+    url = 'http://localhost:5000/download'
+    # Local filename to save the downloaded file
+    local_filename = 'sample.tar'
+    payload = {"filenames":missing_files.tolist()}
+    with requests.get(url, stream=True, json=payload) as r:
+        r.raise_for_status()
+        total_size_in_bytes = int(r.headers.get('content-length', 0))
 
-    # Check the output and errors
-    if result.returncode == 0:
-        print("Success:")
-        print(result.stdout)
-    else:
-        print("Error:")
-        print(result.stderr)
+        # Initialize the progress bar
+        with tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True, desc=local_filename) as progress:
+            with open(local_filename, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    progress.update(len(chunk))
+                    f.write(chunk)
+        print(f"File downloaded successfully: {local_filename}")
 
 def get_missing_files(bounding_box, url):
     server_files = get_files_from_server(bounding_box, url)
-    local_files = findFiles("tester.json", bounding_box)
+    local_files = findFiles("atlas.json", bounding_box)
     missing_files = filesToSend(local_files, server_files)
     url = url + "/download"
-    payload = {"filenames":missing_files.tolist()}
-    with open('data.json', 'w') as f:
-        json.dump(payload, f)
-    # respone = requests.post(url,json=payload) 
-    download_missing_files()
+    
+    if missing_files.size != 0:
+        print(missing_files)
+        download_missing_files(missing_files)
+        fix_atlas()
     
     # print(missing_files)
+def fix_atlas():
+    with tarfile.open("sample.tar", "r") as new_files:
+        new_files.extractall("new_files")
+    update_atlas("new_files", "atlas.json")
+    for file in os.listdir("new_files"):
+        full_path = os.path.join("new_files", file)
+        os.remove(full_path)
+    os.remove("sample.tar")
     
-get_missing_files(bounds, url)
+if __name__ == "__main__":
+    # user = input("Enter username: ")
+    # passwd = input("Enter password: ")
+    if setSSH():
+        get_missing_files(bounds,url)
+             
     
 
 

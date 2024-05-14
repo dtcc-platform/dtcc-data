@@ -22,3 +22,5 @@ for i in range(10):
 
 with open('tester.json', 'w') as json_file:
     json.dump(atlas, json_file, indent=4)
+with open('atlas.json', 'w') as f:
+    json.dump(atlas, f, indent=4)
