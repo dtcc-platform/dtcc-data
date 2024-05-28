@@ -1,4 +1,7 @@
+
 # Download the demo on server side
+
+#git clone ...
 
 # Define stored input data, e.g. Tile_01,Tile_02 directories with .gpgk file in each
 
