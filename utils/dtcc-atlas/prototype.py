@@ -57,7 +57,7 @@ def findTiles(filename, bounds):
             tile = {
 
                     "geometry": Polygon([(x,y), (x,y+height), (x+width,y+height), (x+width,y)]),
-                    'laz_path': info['filename']
+                    'filename': info['filename']
             }
             tiles.append(tile)
             previous_max = data[x_min][y_min]["width"] + int(y_min)
@@ -77,7 +77,7 @@ def findTiles(filename, bounds):
 
 def findFiles(filename, selected_area):
     start = time.time()
-    hardcoded_bounds = Polygon([(375000,6887500), (375000,6895000),(392500,6895000),(392500,6887500)])
+    hardcoded_bounds = Polygon([(442660,7171055), (512660,7171055),(512660,7341055),(442660,7341055)])
     if hardcoded_bounds.covers(selected_area):
         print("Finding laz Files")
     elif hardcoded_bounds.intersects(selected_area):
@@ -99,14 +99,14 @@ def findFiles(filename, selected_area):
     missing_areas = selected_area.difference(merged_tiles)
 
     intersecting_tiles = gdf[gdf.intersects(selected_area)]
-    laz_files = intersecting_tiles['laz_path'].tolist()
+    files = intersecting_tiles['filename'].tolist()
 
 
     # print(missing_areas)
     # print(len(laz_files))
     # end = time.time()
     # print(end-start)
-    return laz_files
+    return files
 # import matplotlib.pyplot as plt
 
 # fig, ax = plt.subplots()

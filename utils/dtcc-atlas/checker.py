@@ -14,9 +14,9 @@ from getpass import getpass
 
 url = 'http://localhost:5000'
 
-bounds = box(380000, 6880000, 390000, 6892500)
-server_files = findFiles("atlas.json", bounds)
-local_files = findFiles("tester.json", bounds)
+bounds = box(442660, 7171055, 512660, 7341055)
+# server_files = findFiles("atlas.json", bounds)
+# local_files = findFiles("tester.json", bounds)
 
 def authenticate(username, password):
     import pam  # Import here to avoid error if not run on Linux
@@ -41,7 +41,8 @@ def setSSH():
         if authenticate(username, password):
             print("PAM authentication successful.")
             # Connect via SSH
-            ssh.connect("data2.dtcc.chalmers.se", username=username, password=password)
+            ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
+            print("Passed")
             stdin, stdout, stderr = ssh.exec_command('uname -a')
             print(stdout.read().decode()) 
             flag = True
@@ -92,9 +93,13 @@ def download_missing_files(missing_files):
                     f.write(chunk)
         print(f"File downloaded successfully: {local_filename}")
 
-def get_missing_files(bounding_box, url):
+def get_missing_files(bounding_box, url, type):
     server_files = get_files_from_server(bounding_box, url)
-    local_files = findFiles("atlas.json", bounding_box)
+    if type == "laz":
+        local_files = findFiles("atlas.json", bounding_box)
+    elif type == "gpkg":
+        local_files = findFiles("catalog.json", bounding_box)
+
     missing_files = filesToSend(local_files, server_files)
     url = url + "/download"
     
@@ -107,17 +112,17 @@ def get_missing_files(bounding_box, url):
 def fix_atlas():
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
-    update_atlas("new_files", "atlas.json")
-    for file in os.listdir("new_files"):
-        full_path = os.path.join("new_files", file)
-        os.remove(full_path)
+    # update_atlas("new_files", "atlas.json")
+    # for file in os.listdir("new_files"):
+    #     full_path = os.path.join("new_files", file)
+    #     os.remove(full_path)
     os.remove("sample.tar")
     
 if __name__ == "__main__":
     # user = input("Enter username: ")
     # passwd = input("Enter password: ")
     if setSSH():
-        get_missing_files(bounds,url)
+        get_missing_files(bounds,url,"gpkg")
              
     
 

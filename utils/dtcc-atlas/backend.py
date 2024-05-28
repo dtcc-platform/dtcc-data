@@ -50,7 +50,8 @@ def download_tar_file():
     data_list = request.get_json(())
     if os.path.exists("zipped_data/myfiles.tar.gz"):
         os.remove("zipped_data/myfiles.tar.gz")
-    create_tarball("zipped_data/myfiles.tar.gz", "../../../atlas_small", data_list["filenames"])
+    # create_tarball("zipped_data/myfiles.tar.gz", "../../../atlas_small", data_list["filenames"]) #laz files
+    create_tarball("zipped_data/myfiles.tar.gz", "tiles_output", data_list["filenames"])
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':
