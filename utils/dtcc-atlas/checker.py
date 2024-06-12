@@ -6,7 +6,7 @@ import subprocess
 import json
 import os
 import tarfile
-from create_atlas import update_atlas
+from create_atlas import update_gpkg_atlas
 from tqdm import tqdm
 import paramiko
 from getpass import getpass
@@ -14,7 +14,7 @@ from getpass import getpass
 
 url = 'http://localhost:5000'
 
-bounds = box(442660, 7171055, 512660, 7341055)
+bounds = box(386646, 6921055, 397646, 7005055)
 # server_files = findFiles("atlas.json", bounds)
 # local_files = findFiles("tester.json", bounds)
 
@@ -76,8 +76,11 @@ def get_files_from_server(bounding_box, url):
         print('Response:', response.text)
         
     
-def download_missing_files(missing_files):
-    url = 'http://localhost:5000/download'
+def download_missing_files(missing_files, type):
+    if type == "laz":
+        url = 'http://localhost:5000/download-laz'
+    elif type == "gpkg":
+        url = 'http://localhost:5000/download-gpkg'
     # Local filename to save the downloaded file
     local_filename = 'sample.tar'
     payload = {"filenames":missing_files.tolist()}
@@ -98,31 +101,31 @@ def get_missing_files(bounding_box, url, type):
     if type == "laz":
         local_files = findFiles("atlas.json", bounding_box)
     elif type == "gpkg":
-        local_files = findFiles("catalog.json", bounding_box)
-
+        local_files = findFiles("tester.json", bounding_box)
+    print(local_files, server_files)
     missing_files = filesToSend(local_files, server_files)
     url = url + "/download"
     
     if missing_files.size != 0:
         print(missing_files)
-        download_missing_files(missing_files)
-        fix_atlas()
+        download_missing_files(missing_files, type)
+        fix_atlas(type)
     
     # print(missing_files)
-def fix_atlas():
+def fix_atlas(type):
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
-    # update_atlas("new_files", "atlas.json")
-    # for file in os.listdir("new_files"):
-    #     full_path = os.path.join("new_files", file)
-    #     os.remove(full_path)
+    update_gpkg_atlas("new_files", "tester.json")
+    for file in os.listdir("new_files"):
+        full_path = os.path.join("new_files", file)
+        os.remove(full_path)
     os.remove("sample.tar")
     
 if __name__ == "__main__":
     # user = input("Enter username: ")
     # passwd = input("Enter password: ")
-    if setSSH():
-        get_missing_files(bounds,url,"gpkg")
+    # if setSSH():
+    get_missing_files(bounds,url,"gpkg")
              
     
 

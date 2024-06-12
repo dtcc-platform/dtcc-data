@@ -2,6 +2,7 @@ import math
 import os
 import laspy
 import json
+from collections import OrderedDict
 
 def get_tile_info(filename):
     # Open the .laz file and extract min x and y
@@ -41,7 +42,8 @@ def find_closest(l, point):
             return idx
     return -1
     
-def update_atlas(directory, atlas):
+def update_laz_atlas(directory, atlas, type):
+    
     try:
         with open(atlas, 'r') as file:
             data = json.load(file)
@@ -80,7 +82,39 @@ def update_atlas(directory, atlas):
             data[x_coords[index_x]] = new_column
     with open(atlas, 'w') as json_file:
         json.dump(data, json_file, indent=4)
-    
+
+
+def update_gpkg_atlas(directory, atlas):
+    missing_files_file = os.path.join(directory, "missing_coords.json")
+
+    with open(missing_files_file, "r") as mff:
+        missing_filenames = json.load(mff)
+    try:
+        with open(atlas, "r") as f:
+            data = json.load(f)
+    except:
+        data = {}
+    for item in missing_filenames:
+        print(item)
+        coords = missing_filenames[item]
+        print(coords)
+        try:
+            data[str(coords[0])][str(coords[1])] = {"height": 10000.0,
+                                                    "width": 10000.0,
+                                                    "filename": item}
+        except:
+            data[str(coords[0])] = {}
+            data[str(coords[0])][str(coords[1])] = {"height": 10000.0,
+                                                    "width": 10000.0,
+                                                    "filename": item}
+    sorted_catalog = OrderedDict()
+    for minx in sorted(data.keys()):
+        sorted_catalog[minx] = OrderedDict()
+        for miny in sorted(data[minx].keys()):
+            sorted_catalog[minx][miny] = data[minx][miny]
+    with open(atlas, "w") as f:
+        json.dump(data, f, indent=4)
+      
             
 if __name__ == "__main__":
     main('../../../atlas_small')

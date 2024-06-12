@@ -31,20 +31,25 @@ def findTiles(filename, bounds):
         with open(filename, 'r') as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
+        print("local atlas was not found")
         return []
-    constant = 5000
+    constant = 20000
     x_data = list(data)
     
 
     index_x = binary_search_within_range(x_data, bounds[0]-constant, bounds[0])
     if not index_x and bounds[0] < int(x_data[0]):
         index_x = 0
+    print(bounds[0], x_data[0])
+    if index_x == None:
+        print("Unexpected error")
+        return []
     x_min = x_data[index_x]
     tiles = []
     while int(x_min) <= bounds[2] + constant:
         y_data = list(data[x_data[index_x]])
         index_y = binary_search_within_range(y_data, bounds[1]-constant, bounds[1])
-        if not index_y and bounds[1] < int(y_data[0]):
+        if not index_y and bounds[1] <= int(y_data[0]):
             index_y = 0
         y_min = y_data[index_y]
         previous_max = 0
@@ -77,7 +82,7 @@ def findTiles(filename, bounds):
 
 def findFiles(filename, selected_area):
     start = time.time()
-    hardcoded_bounds = Polygon([(442660,7171055), (512660,7171055),(512660,7341055),(442660,7341055)])
+    hardcoded_bounds = Polygon([(266646,5921055), (516646,5921055),(766646,6171055),(1016646,6921055), (516646,5421055), (516646,7671055), (266646,7421055), (266646,5921055)])
     if hardcoded_bounds.covers(selected_area):
         print("Finding laz Files")
     elif hardcoded_bounds.intersects(selected_area):
@@ -102,18 +107,12 @@ def findFiles(filename, selected_area):
     files = intersecting_tiles['filename'].tolist()
 
 
-    # print(missing_areas)
+    # print(intersecting_tiles)
     # print(len(laz_files))
     # end = time.time()
     # print(end-start)
     return files
-# import matplotlib.pyplot as plt
 
-# fig, ax = plt.subplots()
-# gdf.plot(ax=ax, color='blue', edgecolor='k')  # Plot existing tiles
-# gpd.GeoSeries([missing_areas]).plot(ax=ax, color='red', alpha=0.5)  # Plot missing areas
-# gpd.GeoSeries([selected_area]).plot(ax=ax, edgecolor='green', facecolor='none', linestyle='--', linewidth=2, label='Selected Area')
-# plt.show()
     
         
        

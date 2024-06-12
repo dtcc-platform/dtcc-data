@@ -3,10 +3,11 @@ from prototype import findFiles
 from shapely import box
 import tarfile
 import os
+import json
 app = Flask(__name__)
 
 
-def create_tarball(output_filename, directory, file_list):
+def create_tarball(output_filename, directory, file_list, extra_file):
     """
     Create a tar.gz archive of specific files within a directory.
 
@@ -22,6 +23,7 @@ def create_tarball(output_filename, directory, file_list):
                 tar.add(file_path, arcname=filename)
             else:
                 print(f"File not found: {file_path}")
+        tar.add(extra_file)
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -35,7 +37,7 @@ def process_bounding_box():
     # Extract points
     points = data['points']
     selected_area = box(points[0], points[1], points[2], points[3])
-    serverfiles = findFiles('tester.json', selected_area)
+    serverfiles = findFiles('catalog.json', selected_area)
 
 
     # Here you could add any processing you want on the points
@@ -45,8 +47,32 @@ def process_bounding_box():
         'received_points': serverfiles
     })
     
-@app.route('/download', methods=['POST', 'GET'])
-def download_tar_file():
+
+@app.route('/download-gpkg', methods=['POST', 'GET']) 
+def download_gpkg_files():
+    try:
+        os.remove("zipped_data/myfiles.tar.gz")
+    except:
+        pass
+    with open("file_to_coords.json", "r") as ftc:
+        data = json.load(ftc)
+    data_list = request.get_json(())["filenames"]
+    missing_files_coords = {}
+    print(data_list)
+    for file in data_list:
+        print(data[file])
+        missing_files_coords[file] = data[file]
+    with open("missing_coords.json", "w") as coords:
+        json.dump(missing_files_coords, coords, indent=4)
+    # with tarfile.open('zipped_data/myfiles.tar.gz', "w:gz") as tar:
+    #     tar.add("missing_coords.json")
+    create_tarball("zipped_data/myfiles.tar.gz", "tiles_output", data_list, "missing_coords.json")
+    return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
+
+
+
+@app.route('/download-laz', methods=['POST', 'GET'])
+def download_laz_files():
     data_list = request.get_json(())
     if os.path.exists("zipped_data/myfiles.tar.gz"):
         os.remove("zipped_data/myfiles.tar.gz")

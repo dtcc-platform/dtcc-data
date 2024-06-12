@@ -11,6 +11,7 @@ __pycache__
 
 *.tar.gz
 *.zip
+*.gpkg
 
 *.so
 *.o
