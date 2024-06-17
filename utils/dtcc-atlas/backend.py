@@ -6,8 +6,9 @@ import os
 import json
 app = Flask(__name__)
 
+laz_data = "../../../laz_data"
 
-def create_tarball(output_filename, directory, file_list, extra_file):
+def create_tarball(output_filename, directory, file_list, extra_file = None):
     """
     Create a tar.gz archive of specific files within a directory.
 
@@ -23,7 +24,8 @@ def create_tarball(output_filename, directory, file_list, extra_file):
                 tar.add(file_path, arcname=filename)
             else:
                 print(f"File not found: {file_path}")
-        tar.add(extra_file)
+        if extra_file:        
+            tar.add(extra_file)
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -33,15 +35,14 @@ def process_bounding_box():
     # Validate input to make sure it contains four points
     if not data or 'points' not in data or len(data['points']) != 4:
         return jsonify({'error': 'Invalid data, please provide exactly four points'}), 400
-    
+    type = data["type"]
     # Extract points
     points = data['points']
     selected_area = box(points[0], points[1], points[2], points[3])
-    serverfiles = findFiles('catalog.json', selected_area)
-
-
-    # Here you could add any processing you want on the points
-    # For now, let's just return them as they are
+    if type == "laz":
+        serverfiles = findFiles('atlas_laz.json', selected_area)
+    elif type == "gpkg":
+        serverfiles = findFiles('catalog.json', selected_area)
     
     return jsonify({
         'received_points': serverfiles
@@ -77,7 +78,7 @@ def download_laz_files():
     if os.path.exists("zipped_data/myfiles.tar.gz"):
         os.remove("zipped_data/myfiles.tar.gz")
     # create_tarball("zipped_data/myfiles.tar.gz", "../../../atlas_small", data_list["filenames"]) #laz files
-    create_tarball("zipped_data/myfiles.tar.gz", "tiles_output", data_list["filenames"])
+    create_tarball("zipped_data/myfiles.tar.gz", laz_data, data_list["filenames"])
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':

@@ -35,7 +35,8 @@ def findTiles(filename, bounds):
         return []
     constant = 20000
     x_data = list(data)
-    
+    if not data:
+        return []  
 
     index_x = binary_search_within_range(x_data, bounds[0]-constant, bounds[0])
     if not index_x and bounds[0] < int(x_data[0]):
