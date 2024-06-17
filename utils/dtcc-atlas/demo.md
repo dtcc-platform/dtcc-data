@@ -1,6 +1,4 @@
-
 # Download the demo on server side
-
 git clone dtcc-data
 
 # Define stored input data, e.g. Tile_01,Tile_02 directories with .gpgk file in each
@@ -19,5 +17,3 @@ This is the "tester" side. It can work without providing an atlas, as it will cr
 
 # Request data for a specific bounding box
 Make sure you are in the dtcc-data directory. You can change the bounding box accordingly as previously mentioned and get partial data full data(if everythign is missing)
-
-

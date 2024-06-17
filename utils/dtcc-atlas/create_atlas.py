@@ -4,6 +4,8 @@ import laspy
 import json
 from collections import OrderedDict
 
+laz_folder = "../../../laz_data"
+
 def get_tile_info(filename):
     # Open the .laz file and extract min x and y
     with laspy.open(filename) as file:
@@ -29,20 +31,10 @@ def main(directory_path):
     
     files_structure_sorted = {x: {y: files_structure[x][y] for y in sorted(files_structure[x])} for x in sorted(files_structure)}
 
-    with open('atlas.json', 'w') as json_file:
+    with open('atlas_laz.json', 'w') as json_file:
         json.dump(files_structure_sorted, json_file, indent=4)
-
-def find_closest(l, point):
-    max = int(l[0])
-    i = 0
-    for idx,item in enumerate(l):
-        if point > max:
-            max = int(item)
-        else:
-            return idx
-    return -1
     
-def update_laz_atlas(directory, atlas, type):
+def update_laz_atlas(directory, atlas):
     
     try:
         with open(atlas, 'r') as file:
@@ -53,6 +45,7 @@ def update_laz_atlas(directory, atlas, type):
 
     for file in os.listdir(directory):
         if file.endswith(".laz"):
+            print(1)
             full_path = os.path.join(directory, file)
             min_x, min_y, max_x, max_y = get_tile_info(full_path)
             try:
@@ -117,5 +110,5 @@ def update_gpkg_atlas(directory, atlas):
       
             
 if __name__ == "__main__":
-    main('../../../atlas_small')
+    main(laz_folder)
 
