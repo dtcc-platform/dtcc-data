@@ -7,6 +7,10 @@ import json
 app = Flask(__name__)
 
 laz_data = "../../../laz_data"
+zip_folder = "zipped_data"
+
+if not os.path.exists(zip_folder):
+        os.mkdir(zip_folder)
 
 def create_tarball(output_filename, directory, file_list, extra_file = None):
     """
@@ -26,6 +30,7 @@ def create_tarball(output_filename, directory, file_list, extra_file = None):
                 print(f"File not found: {file_path}")
         if extra_file:        
             tar.add(extra_file)
+    os.remove(extra_file)
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -42,7 +47,7 @@ def process_bounding_box():
     if type == "laz":
         serverfiles = findFiles('atlas_laz.json', selected_area)
     elif type == "gpkg":
-        serverfiles = findFiles('catalog.json', selected_area)
+        serverfiles = findFiles('atlas_bygg.json', selected_area)
     
     return jsonify({
         'received_points': serverfiles

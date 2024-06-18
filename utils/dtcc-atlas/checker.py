@@ -14,7 +14,7 @@ from getpass import getpass
 
 url = 'http://localhost:5000'
 
-bounds = box(300000, 6500000, 302500, 6507500)
+bounds = box(400000, 7000000, 456646, 7200000)
 # server_files = findFiles("atlas.json", bounds)
 # local_files = findFiles("tester.json", bounds)
 
@@ -101,7 +101,7 @@ def get_missing_files(bounding_box, url, type):
     if type == "laz":
         local_files = findFiles("tester_laz.json", bounding_box)
     elif type == "gpkg":
-        local_files = findFiles("tester_gpkg.json", bounding_box)
+        local_files = findFiles("tester_bygg.json", bounding_box)
     print(local_files, server_files)
     missing_files = filesToSend(local_files, server_files)
     url = url + "/download"
@@ -118,7 +118,7 @@ def fix_atlas(type):
     if type == "laz":
         update_laz_atlas("new_files", "tester_laz.json")
     elif type == "gpkg":
-        update_gpkg_atlas("new_files", "tester_gpkg.json")
+        update_gpkg_atlas("new_files", "tester_bygg.json")
     for file in os.listdir("new_files"):
         full_path = os.path.join("new_files", file)
         os.remove(full_path)
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     # user = input("Enter username: ")
     # passwd = input("Enter password: ")
     # if setSSH():
-    get_missing_files(bounds,url,"laz")
+    get_missing_files(bounds,url,"gpkg")
              
     
 
