@@ -62,11 +62,17 @@ def main():
 
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
-
+    if not os.path.exists(data_directory):
+        print("Cant find server_data folder")
+        return 
+    
     gpkg_files = list_gpkg_files(data_directory)
     coords = read_json_coordinates(json_coords_file)
     catalog = {}
     file_to_coords = {}
+    if not gpkg_files:
+        print("No files found to tile")
+        return
     
     for gpkg_name in gpkg_files:
         print(f"Processing {gpkg_name}...")
@@ -117,7 +123,7 @@ def main():
             sorted_catalog[minx][miny] = catalog[minx][miny]
     end = time.time()
     print("Time for sorting ", end-start)
-    with open("catalog.json", 'w') as f:
+    with open("atlas_bygg.json", 'w') as f:
         json.dump(sorted_catalog, f, indent=4)
 
     with open("file_to_coords.json", 'w') as f:
