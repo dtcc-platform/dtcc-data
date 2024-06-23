@@ -25,14 +25,8 @@ def binary_search_within_range(arr, low_bound, high_bound):
 
 
 
-def findTiles(filename, bounds):
+def findTiles(data, bounds):
     
-    try:
-        with open(filename, 'r') as file:
-            data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        print("local atlas was not found")
-        return []
     constant = 20000
     x_data = list(data)
     if not data:
@@ -81,17 +75,17 @@ def findTiles(filename, bounds):
     return tiles
 # print(tiles)
 
-def findFiles(filename, selected_area):
+def findFiles(data, selected_area):
     start = time.time()
     hardcoded_bounds = Polygon([(266646,5921055), (516646,5921055),(766646,6171055),(1016646,6921055), (516646,5421055), (516646,7671055), (266646,7421055), (266646,5921055)])
     if hardcoded_bounds.covers(selected_area):
-        print("Finding laz Files")
+        print("Finding Files")
     elif hardcoded_bounds.intersects(selected_area):
         print("Some of the area you provided is out of bounds, Computing the area only inside bounds...")
     else:
         print("The area you provided is out of bounds...")
         return []
-    tiles = findTiles(filename, selected_area.bounds)
+    tiles = findTiles(data, selected_area.bounds)
 
 
     if not tiles:

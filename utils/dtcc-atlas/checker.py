@@ -15,22 +15,12 @@ from getpass import getpass
 url = 'http://localhost:5000'
 
 bounds = box(400000, 7000000, 456646, 7200000)
-# server_files = findFiles("atlas.json", bounds)
-# local_files = findFiles("tester.json", bounds)
 
 def authenticate(username, password):
     import pam  # Import here to avoid error if not run on Linux
     p = pam.pam()
     return p.authenticate(username, password)
 
-# def authenticate(username, password):
-#     p = pam.pam()
-#     authenticated = p.authenticate(username, password)
-#     if authenticated:
-#         print("Authentication successful!")
-#         get_missing_files(bounds, url)
-#     else:
-#         print("Authentication failed. Check username and password.")
 def setSSH():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -99,9 +89,16 @@ def download_missing_files(missing_files, type):
 def get_missing_files(bounding_box, url, type):
     server_files = get_files_from_server(bounding_box, url, type)
     if type == "laz":
-        local_files = findFiles("tester_laz.json", bounding_box)
+        filename = "tester_laz.json"
     elif type == "gpkg":
-        local_files = findFiles("tester_bygg.json", bounding_box)
+        filename = "tester_bygg.json"
+    try:
+        with open(filename, 'r') as file:
+            data = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        print("local atlas was not found")
+        data = {}
+    local_files = findFiles(data, bounding_box)
     print(local_files, server_files)
     missing_files = filesToSend(local_files, server_files)
     url = url + "/download"

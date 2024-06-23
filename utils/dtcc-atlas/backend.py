@@ -8,6 +8,23 @@ app = Flask(__name__)
 
 laz_data = "../../../laz_data"
 zip_folder = "zipped_data"
+try:
+    with open("atlas_laz.json", "r") as f1:
+        laz_data = json.load(f1)
+except:
+    print("Missing Laz atlas. Trying to start without bygg atlas")  
+    laz_data = None      
+
+try:
+    with open("atlas_bygg.json", "r") as f2:
+        gpkg_data = json.load(f2)
+except:
+    print("Missing bygg atlas. Trying to start without bygg atlas.")
+    gpkg_data = None
+
+if not laz_data and not gpkg_data:
+    print("Both files are missing. The server cannot serve data so its terminated")
+    exit()
 
 if not os.path.exists(zip_folder):
         os.mkdir(zip_folder)
@@ -44,10 +61,11 @@ def process_bounding_box():
     # Extract points
     points = data['points']
     selected_area = box(points[0], points[1], points[2], points[3])
-    if type == "laz":
-        serverfiles = findFiles('atlas_laz.json', selected_area)
-    elif type == "gpkg":
-        serverfiles = findFiles('atlas_bygg.json', selected_area)
+    serverfiles = []
+    if type == "laz" and laz_data:
+        serverfiles = findFiles(laz_data, selected_area)
+    elif type == "gpkg" and gpkg_data:
+        serverfiles = findFiles(gpkg_data, selected_area)
     
     return jsonify({
         'received_points': serverfiles
