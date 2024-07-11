@@ -1,18 +1,17 @@
 import numpy as np
-from prototype import findFiles
+from .prototype import findFiles
 from shapely.geometry import box, Polygon
 import requests
 import subprocess
 import json
 import os
 import tarfile
-from create_atlas import update_gpkg_atlas, update_laz_atlas
+from .utils import update_gpkg_atlas, update_laz_atlas
 from tqdm import tqdm
 import paramiko
 from getpass import getpass
 
 
-url = 'http://localhost:5000'
 
 bounds = box(400000, 7000000, 456646, 7200000)
 
@@ -121,13 +120,10 @@ def fix_atlas(type):
         os.remove(full_path)
     os.remove("sample.tar")
     
-if __name__ == "__main__":
-    # user = input("Enter username: ")
-    # passwd = input("Enter password: ")
-    # if setSSH():
-    get_missing_files(bounds,url,"gpkg")
+# if __name__ == "__main__":
+#     # user = input("Enter username: ")
+#     # passwd = input("Enter password: ")
+#     # if setSSH():
+#     get_missing_files(bounds,url,"gpkg")
              
     
-
-
-

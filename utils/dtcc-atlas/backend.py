@@ -1,12 +1,15 @@
 from flask import Flask, request, jsonify, send_file
-from prototype import findFiles
+from atlas import prototype
 from shapely import box
 import tarfile
 import os
 import json
+
+findFiles = prototype.findFiles
+
 app = Flask(__name__)
 
-laz_data = "../../../laz_data"
+laz_directory = "../../../laz_data"
 zip_folder = "zipped_data"
 try:
     with open("atlas_laz.json", "r") as f1:
@@ -47,7 +50,10 @@ def create_tarball(output_filename, directory, file_list, extra_file = None):
                 print(f"File not found: {file_path}")
         if extra_file:        
             tar.add(extra_file)
-    os.remove(extra_file)
+    try:        
+        os.remove(extra_file)
+    except:
+        pass
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -82,7 +88,6 @@ def download_gpkg_files():
         data = json.load(ftc)
     data_list = request.get_json(())["filenames"]
     missing_files_coords = {}
-    print(data_list)
     for file in data_list:
         print(data[file])
         missing_files_coords[file] = data[file]
@@ -101,7 +106,7 @@ def download_laz_files():
     if os.path.exists("zipped_data/myfiles.tar.gz"):
         os.remove("zipped_data/myfiles.tar.gz")
     # create_tarball("zipped_data/myfiles.tar.gz", "../../../atlas_small", data_list["filenames"]) #laz files
-    create_tarball("zipped_data/myfiles.tar.gz", laz_data, data_list["filenames"])
+    create_tarball("zipped_data/myfiles.tar.gz", laz_directory, data_list["filenames"])
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':
