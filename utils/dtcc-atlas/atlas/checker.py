@@ -116,14 +116,14 @@ def download_missing_files(missing_files, type):
                     f.write(chunk)
         print(f"File downloaded successfully: {local_filename}")
 
-def get_missing_files(bounding_box, type):
+def get_missing_files(bounding_box, url, type):
     """Preprocess the data and calls previous functions
 
     Args:
         bounding_box (shapely box): Bounding box
         type (string): gpkg or laz
     """
-    server_files = get_files_from_server(bounding_box, type)
+    server_files = get_files_from_server(bounding_box, url, type)
     if type == "laz":
         filename = "tester_laz.json"
     elif type == "gpkg":
