@@ -5,6 +5,14 @@ import laspy
 import math
 
 def get_tile_info(filename):
+    """extracts laz file and finds necessary information 
+
+    Args:
+        filename (string): Name of the file
+
+    Returns:
+        list[int]: mix max coordinates
+    """
     # Open the .laz file and extract min x and y
     with laspy.open(filename) as file:
         las = file.read()
@@ -15,7 +23,12 @@ def get_tile_info(filename):
     return min_x, min_y, max_x, max_y
 
 def update_laz_atlas(directory, atlas):
-    
+    """updates the laz atlas 
+
+    Args:
+        directory (string): name of the directory of the downloaded files
+        atlas (string): atlas filename
+    """
     try:
         with open(atlas, 'r') as file:
             data = json.load(file)
@@ -58,6 +71,12 @@ def update_laz_atlas(directory, atlas):
 
 
 def update_gpkg_atlas(directory, atlas):
+    """updates the gpkg atlas
+
+    Args:
+        directory (string):name of the directory of new files
+        atlas (string): name of the atlas
+    """
     missing_files_file = os.path.join(directory, "missing_coords.json")
 
     with open(missing_files_file, "r") as mff:

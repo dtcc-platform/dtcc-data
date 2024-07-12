@@ -4,6 +4,16 @@ from shapely.geometry import box, Polygon
 import geopandas as gpd
 
 def binary_search_within_range(arr, low_bound, high_bound):
+    """search of a coordinate within range 
+
+    Args:
+        arr (list[int]):list that contains a coordinate(x or y) to be searched
+        low_bound (int): The low bound to search within
+        high_bound (int): The high bound to search within
+
+    Returns:
+        int:index of first element that is found withing bounds  
+    """
     low, high = 0, len(arr) - 1
     
     while low <= high:
@@ -26,6 +36,15 @@ def binary_search_within_range(arr, low_bound, high_bound):
 
 
 def findTiles(data, bounds):
+    """Finds all the tiles that are withing the bounding box 
+
+    Args:
+        data (directory):The atlas directory  
+        bounds (Shapely box): The bounding box
+
+    Returns:
+        Tile: The tile with the geometry
+    """
     
     constant = 20000
     x_data = list(data)
@@ -76,6 +95,15 @@ def findTiles(data, bounds):
 # print(tiles)
 
 def findFiles(data, selected_area):
+    """Extracts the information gived by the tiles of the findTiles and returns only the filenames
+
+    Args:
+        data (directory): The atlas data
+        selected_area (Shapely box): The bounging box
+
+    Returns:
+        list[string]: The filenames inside the bounding box
+    """
     start = time.time()
     hardcoded_bounds = Polygon([(266646,5921055), (516646,5921055),(766646,6171055),(1016646,6921055), (516646,5421055), (516646,7671055), (266646,7421055), (266646,5921055)])
     if hardcoded_bounds.covers(selected_area):

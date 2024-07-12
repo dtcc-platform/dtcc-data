@@ -21,6 +21,11 @@ def authenticate(username, password):
     return p.authenticate(username, password)
 
 def setSSH():
+    """
+        Authentication using paramiko
+    Returns:
+        Flag depending whether the authentication was successful or not
+    """
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -43,6 +48,15 @@ def setSSH():
     return flag
 
 def filesToSend(local, server):
+    """
+    Compares lists of strings that are the filenames of the client and the server to check which files are missing
+    Args:
+        local (list[string]): filenames on the client   
+        server (list[string]): filenames of the server
+
+    Returns:
+        list[string] : filenames that are missing from the client
+    """
     local = np.array(local)
     server = np.array(server)
     dif1 = np.setdiff1d(local, server)
@@ -52,6 +66,17 @@ def filesToSend(local, server):
     return temp3
 
 def get_files_from_server(bounding_box, url, type):
+    """sends request to the server with the initial bounding box and expects a list of filenames 
+        that the server found inside the bounding box
+
+    Args:
+        bounding_box (Shapely box): Bounding box
+        url (string): The server url for the request
+        type (string): Type of data being requested (laz of gpkg)
+
+    Returns:
+        _type_: _description_
+    """
     payload = {"points" : bounding_box.bounds, "type": type}
     url = url + '/api/post/boundingbox'
     response = requests.post(url, json=payload)
@@ -66,6 +91,12 @@ def get_files_from_server(bounding_box, url, type):
         
     
 def download_missing_files(missing_files, type):
+    """Sends request to the server with the filenames of the missing files and downloads them as a tar
+
+    Args:
+        missing_files (list[string]): The list of the missing files
+        type (string): gpkg or laz
+    """
     if type == "laz":
         url = 'http://localhost:5000/download-laz'
     elif type == "gpkg":
@@ -85,8 +116,14 @@ def download_missing_files(missing_files, type):
                     f.write(chunk)
         print(f"File downloaded successfully: {local_filename}")
 
-def get_missing_files(bounding_box, url, type):
-    server_files = get_files_from_server(bounding_box, url, type)
+def get_missing_files(bounding_box, type):
+    """Preprocess the data and calls previous functions
+
+    Args:
+        bounding_box (shapely box): Bounding box
+        type (string): gpkg or laz
+    """
+    server_files = get_files_from_server(bounding_box, type)
     if type == "laz":
         filename = "tester_laz.json"
     elif type == "gpkg":
@@ -100,7 +137,6 @@ def get_missing_files(bounding_box, url, type):
     local_files = findFiles(data, bounding_box)
     print(local_files, server_files)
     missing_files = filesToSend(local_files, server_files)
-    url = url + "/download"
     
     if missing_files.size != 0:
         print(missing_files)
@@ -109,6 +145,11 @@ def get_missing_files(bounding_box, url, type):
     
     # print(missing_files)
 def fix_atlas(type):
+    """Handles the extraction of the downloaded data and calls respective functions to update client side atlas
+
+    Args:
+        type (string): gpkg or laz
+    """
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
     if type == "laz":
