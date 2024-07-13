@@ -4,12 +4,13 @@ from shapely import box
 import tarfile
 import os
 import json
+import time
 
 findFiles = prototype.findFiles
 
 app = Flask(__name__)
-
-laz_directory = "../../../laz_data"
+start_time = time.time()
+laz_directory = "../../../65_3" #DATA LOCATION HERE
 zip_folder = "zipped_data"
 try:
     with open("atlas_laz.json", "r") as f1:
@@ -54,6 +55,13 @@ def create_tarball(output_filename, directory, file_list, extra_file = None):
         os.remove(extra_file)
     except:
         pass
+
+@app.route('/health',methods=['GET'])
+def health():
+    current_time = time.time()
+    uptime_seconds = current_time - start_time
+    uptime = {'uptime_seconds': uptime_seconds}
+    return jsonify(uptime)
 
 @app.route('/api/post/boundingbox', methods=['POST'])
 def process_bounding_box():
@@ -100,7 +108,7 @@ def download_gpkg_files():
 
 
 
-@app.route('/download-laz', methods=['POST', 'GET'])
+@app.route('/download-laz', methods=['GET'])
 def download_laz_files():
     data_list = request.get_json(())
     if os.path.exists("zipped_data/myfiles.tar.gz"):
@@ -110,4 +118,4 @@ def download_laz_files():
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host = "0.0.0.0" ,debug=True, port=54321)

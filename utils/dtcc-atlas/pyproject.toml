@@ -25,6 +25,7 @@ dependencies = [
   "tqdm >= 4.66.4, < 5.0.0",
   "Flask >= 3.0.3, < 4.0.0",
   "paramiko >= 3.4.0, < 4.0.0",
+  "pam >=0.2.0, < 1.0.0",
 ]
 
 [project.optional-dependencies]

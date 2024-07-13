@@ -90,7 +90,7 @@ def get_files_from_server(bounding_box, url, type):
         print('Response:', response.text)
         
     
-def download_missing_files(missing_files, type):
+def download_missing_files(missing_files, url, type):
     """Sends request to the server with the filenames of the missing files and downloads them as a tar
 
     Args:
@@ -98,9 +98,9 @@ def download_missing_files(missing_files, type):
         type (string): gpkg or laz
     """
     if type == "laz":
-        url = 'http://localhost:5000/download-laz'
+        url = url + '/download-laz'
     elif type == "gpkg":
-        url = 'http://localhost:5000/download-gpkg'
+        url = url = '/download-gpkg'
     # Local filename to save the downloaded file
     local_filename = 'sample.tar'
     payload = {"filenames":missing_files.tolist()}
@@ -140,7 +140,7 @@ def get_missing_files(bounding_box, url, type):
     
     if missing_files.size != 0:
         print(missing_files)
-        download_missing_files(missing_files, type)
+        download_missing_files(missing_files, url, type)
         fix_atlas(type)
     
     # print(missing_files)

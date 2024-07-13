@@ -1,6 +1,6 @@
 from .checker import get_missing_files
 
-url = 'http://129.16.14.10:4321'
+url = 'http://129.16.69.36:54321' #HOST IP
 
 def download_footprints(bbox):
     return get_missing_files(bbox, url, "gpkg")

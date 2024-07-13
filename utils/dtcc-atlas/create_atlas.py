@@ -3,14 +3,15 @@ import os
 import json
 from collections import OrderedDict
 from atlas.utils import get_tile_info
+from tqdm import tqdm
 
-laz_folder = "../../../laz_data"
+laz_folder = "../../../laz_data" # DATA LOCATION HERE
 
 def main(directory_path):
     files_structure = {}
     files = [f for f in os.listdir(directory_path) if f.endswith('.laz')]
     atlas = []
-    for filename in files:
+    for filename in tqdm(files, desc="Processing files"):
         full_path = os.path.join(directory_path, filename)
         min_x, min_y, max_x, max_y = get_tile_info(full_path)
         
