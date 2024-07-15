@@ -100,7 +100,7 @@ def download_missing_files(missing_files, url, type):
     if type == "laz":
         url = url + '/download-laz'
     elif type == "gpkg":
-        url = url = '/download-gpkg'
+        url = url + '/download-gpkg'
     # Local filename to save the downloaded file
     local_filename = 'sample.tar'
     payload = {"filenames":missing_files.tolist()}
