@@ -5,36 +5,31 @@ build-backend = "setuptools.build_meta"
 [project]
 version = "0.7.16"
 name = "dtcc-data"
-description = "DTCC Data"
+description = Dtcc Data"
 readme = "README.md"
 authors = [
   { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
   { name = "Anders Logg", email = "logg@chalmers.se" },
-  { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se" },
+  { name = "Themistoklis Arvanitis", email = "thearva@chalmers.se"},
+  { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se"},
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
   "Intended Audience :: Science/Research",
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
+  "laspy[lazrs] >= 2.3.0, < 3.0.0",
   "numpy >= 1.20.0, < 2.0.0",
-  "h5py",
-  "Flask",
-  "pyproj",
-  "psycopg",
-  "tqdm",
-  "dtcc-io@git+https://github.com/dtcc-platform/dtcc-io.git@develop",
+  "shapely >= 2.0.0, < 3.0.0",
+  "geopandas >= 0.14.0, < 1.0.0",
+  "requests >= 2.31.0, < 3.0.0",
+  "tqdm >= 4.66.4, < 5.0.0",
+  "Flask >= 3.0.3, < 4.0.0",
+  "paramiko >= 3.4.0, < 4.0.0",
+  "pam >=0.2.0, < 1.0.0",
 ]
 
 [project.optional-dependencies]
 test = ["pytest"]
-
-[project.scripts]
-dtcc-import-elevation-data = "dtcc_data.scripts:las_to_elevation_data.main"
-dtcc-download-demo-data = "dtcc_data.scripts:dtcc_download_demo_data.main"
-
-[tool.cibuildwheel]
-test-command = "pytest {project}/tests"
-build-verbosity = 1
