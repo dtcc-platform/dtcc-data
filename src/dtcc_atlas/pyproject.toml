@@ -3,12 +3,15 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.1.0"
-name = "dtcc-io"
-description = "DTCC ATLAS"
+version = "0.7.16"
+name = "dtcc-data"
+description = Dtcc data repoS"
 readme = "README.md"
 authors = [
+
     {name = "Themistoklis Arvanitis", email = "thearva@chalmers.se"}
+    {name = "Naserentin Vasilis", email = "vasilis.naserentin@chalmers.se"}
+
 ]
 requires-python = ">=3.10"
 classifiers = [
