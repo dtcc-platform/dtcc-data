@@ -56,7 +56,7 @@ def findTiles(data, bounds):
         index_x = 0
     print(bounds[0], x_data[0])
     if index_x == None:
-        print("Unexpected error")
+        print("Server does not contain data requested")
         return []
     x_min = x_data[index_x]
     tiles = []
@@ -65,6 +65,9 @@ def findTiles(data, bounds):
         index_y = binary_search_within_range(y_data, bounds[1]-constant, bounds[1])
         if not index_y and bounds[1] <= int(y_data[0]):
             index_y = 0
+        if index_y == None:
+            print("Server does not contain data requested")
+            return []
         y_min = y_data[index_y]
         previous_max = 0
         while int(y_min) <= bounds[3] + constant and previous_max < bounds[3] + constant:

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 version = "0.7.16"
 name = "dtcc-data"
-description = Dtcc Data"
+description = "Dtcc Data"
 readme = "README.md"
 authors = [
   { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
