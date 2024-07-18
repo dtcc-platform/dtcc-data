@@ -2,8 +2,12 @@ import math
 import os
 import json
 from collections import OrderedDict
-from atlas.utils import get_tile_info
 from tqdm import tqdm
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from atlas.utils import get_tile_info
+
 
 laz_folder = "../../../laz_data" # DATA LOCATION HERE
 

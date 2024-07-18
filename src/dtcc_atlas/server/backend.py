@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify, send_file
-from atlas import prototype
 from shapely import box
 import tarfile
 import os
+import sys
 import json
 import time
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from atlas import prototype
 
 findFiles = prototype.findFiles
 
