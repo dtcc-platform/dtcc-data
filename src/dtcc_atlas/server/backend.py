@@ -106,7 +106,7 @@ def download_gpkg_files():
         json.dump(missing_files_coords, coords, indent=4)
     # with tarfile.open('zipped_data/myfiles.tar.gz', "w:gz") as tar:
     #     tar.add("missing_coords.json")
-    create_tarball("zipped_data/myfiles.tar.gz", "tiles_output", data_list, "missing_coords.json")
+    create_tarball("zipped_data/myfiles.tar.gz", "tiled_data_bygg", data_list, "missing_coords.json")
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 

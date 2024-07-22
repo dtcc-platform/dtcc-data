@@ -58,7 +58,7 @@ def process_tile(tile_info):
 def main():
     data_directory = 'server_data'
     json_coords_file = 'hardcoded_bounds.json'
-    output_directory = 'tiled_data'
+    output_directory = 'tiled_data_bygg'
 
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
