@@ -16,7 +16,7 @@ start_time = time.time()
 laz_directory = "../../../65_3" #DATA LOCATION HERE
 zip_folder = "zipped_data"
 try:
-    with open("atlas_laz.json", "r") as f1:
+    with open("atlas_lidar.json", "r") as f1:
         laz_data = json.load(f1)
 except:
     print("Missing Laz atlas. Trying to start without bygg atlas")  
@@ -95,7 +95,7 @@ def download_gpkg_files():
         os.remove("zipped_data/myfiles.tar.gz")
     except:
         pass
-    with open("file_to_coords.json", "r") as ftc:
+    with open("file_to_coords_bygg.json", "r") as ftc:
         data = json.load(ftc)
     data_list = request.get_json(())["filenames"]
     missing_files_coords = {}

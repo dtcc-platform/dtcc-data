@@ -26,7 +26,7 @@ def main(directory_path):
     
     files_structure_sorted = {x: {y: files_structure[x][y] for y in sorted(files_structure[x])} for x in sorted(files_structure)}
 
-    with open('atlas_laz.json', 'w') as json_file:
+    with open('atlas_lidar.json', 'w') as json_file:
         json.dump(files_structure_sorted, json_file, indent=4)
     
       

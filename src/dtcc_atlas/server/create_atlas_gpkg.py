@@ -126,7 +126,7 @@ def main():
     with open("atlas_bygg.json", 'w') as f:
         json.dump(sorted_catalog, f, indent=4)
 
-    with open("file_to_coords.json", 'w') as f:
+    with open("file_to_coords_bygg.json", 'w') as f:
         json.dump(file_to_coords, f, indent=4)
     new_end = time.time()
     print("Time for saving ", new_end-end)
