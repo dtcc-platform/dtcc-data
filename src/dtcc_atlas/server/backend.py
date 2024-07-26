@@ -13,7 +13,7 @@ findFiles = prototype.findFiles
 
 app = Flask(__name__)
 start_time = time.time()
-laz_directory = "../../../65_3" #DATA LOCATION HERE
+laz_directory = "../../../../../65_3" #DATA LOCATION HERE
 zip_folder = "zipped_data"
 try:
     with open("atlas_lidar.json", "r") as f1:

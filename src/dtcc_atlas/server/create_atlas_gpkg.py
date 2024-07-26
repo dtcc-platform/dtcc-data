@@ -6,6 +6,7 @@ import numpy as np
 from multiprocessing import Pool
 import time
 from collections import OrderedDict
+import sys
 
 def list_gpkg_files(directory):
     """ List all gpkg files in a specified directory. """
@@ -15,7 +16,7 @@ def read_json_coordinates(json_file):
     """ Read JSON file that contains coordinates for each tile. """
     with open(json_file, 'r') as file:
         return json.load(file)
-
+    
 def generate_tiles(gdf, tile_size, bounds):
     """ Generate grid tiles based on the given bounds and tile size. """
     tiles = []
@@ -55,11 +56,9 @@ def process_tile(tile_info):
         return minx, miny, height, width, filename
     return None
 
-def main():
-    data_directory = 'server_data'
-    json_coords_file = 'hardcoded_bounds.json'
-    output_directory = 'tiled_data_bygg'
+def create_atlas(data_directory, output_directory, filetype):
 
+    json_coords_file = 'hardcoded_bounds.json'
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
     if not os.path.exists(data_directory):
@@ -123,14 +122,30 @@ def main():
             sorted_catalog[minx][miny] = catalog[minx][miny]
     end = time.time()
     print("Time for sorting ", end-start)
-    with open("atlas_bygg.json", 'w') as f:
+    with open(f"atlas_{filetype}.json", 'w') as f:
         json.dump(sorted_catalog, f, indent=4)
 
-    with open("file_to_coords_bygg.json", 'w') as f:
+    with open(f"file_to_coords_{filetype}.json", 'w') as f:
         json.dump(file_to_coords, f, indent=4)
     new_end = time.time()
     print("Time for saving ", new_end-end)
     print('Tile processing and catalog creation complete.')
+
+def main():
+    filetype = None
+    if len(sys.argv) < 2:
+        print("You need to enter gpkg Type")
+    elif len(sys.argv) == 2:
+        filetype = sys.argv[1]
+    else:
+        print("Enter only one type of gpkg")
+    if filetype == "bygg" or filetype == "vl":
+        create_atlas(f"server_data_{filetype}", f"tiled_data_{filetype}", filetype)
+    else:
+        print("Wrong input")
+    # data_directory = 'server_data'
+    # json_coords_file = 'hardcoded_bounds.json'
+    # output_directory = 'tiled_data_bygg'
 
 if __name__ == '__main__':
     main()
