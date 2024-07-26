@@ -95,12 +95,15 @@ def download_missing_files(missing_files, url, type):
 
     Args:
         missing_files (list[string]): The list of the missing files
-        type (string): gpkg or laz
+        url (string): Server's url
+        type (string): bygg, laz or vl
     """
     if type == "laz":
         url = url + '/download-laz'
-    elif type == "gpkg":
-        url = url + '/download-gpkg'
+    elif type == "bygg":
+        url = url + '/download-bygg'
+    elif type == "vl":
+        url = url + "/download-vl"
     # Local filename to save the downloaded file
     local_filename = 'sample.tar'
     payload = {"filenames":missing_files.tolist()}
@@ -128,6 +131,8 @@ def get_missing_files(bounding_box, url, type):
         filename = "tester_laz.json"
     elif type == "gpkg":
         filename = "tester_bygg.json"
+    elif type == "vl":
+        filename = "tester_vl.json"
     try:
         with open(filename, 'r') as file:
             data = json.load(file)
@@ -154,8 +159,10 @@ def fix_atlas(type):
         new_files.extractall("new_files")
     if type == "laz":
         update_laz_atlas("new_files", "tester_laz.json")
-    elif type == "gpkg":
+    elif type == "bygg":
         update_gpkg_atlas("new_files", "tester_bygg.json")
+    elif type == "vl":
+        update_gpkg_atlas("new_files", "tester_vl.json")
     for file in os.listdir("new_files"):
         full_path = os.path.join("new_files", file)
         os.remove(full_path)

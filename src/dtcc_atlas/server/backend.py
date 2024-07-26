@@ -27,10 +27,17 @@ try:
         gpkg_data = json.load(f2)
 except:
     print("Missing bygg atlas. Trying to start without bygg atlas.")
-    gpkg_data = None
+    bygg_data = None
 
-if not laz_data and not gpkg_data:
-    print("Both files are missing. The server cannot serve data so its terminated")
+try:
+    with open("atlas_vl.json", "r") as f2:
+        gpkg_data = json.load(f2)
+except:
+    print("Missing bygg atlas. Trying to start without bygg atlas.")
+    vl_data = None
+
+if not laz_data and not bygg_data and not vl_data:
+    print("All atlas files are missing. The server cannot serve data so its terminated")
     exit()
 
 if not os.path.exists(zip_folder):
@@ -89,7 +96,7 @@ def process_bounding_box():
     })
     
 
-@app.route('/download-gpkg', methods=['POST', 'GET']) 
+@app.route('/download-bygg', methods=['POST', 'GET']) 
 def download_gpkg_files():
     try:
         os.remove("zipped_data/myfiles.tar.gz")
@@ -107,6 +114,27 @@ def download_gpkg_files():
     # with tarfile.open('zipped_data/myfiles.tar.gz', "w:gz") as tar:
     #     tar.add("missing_coords.json")
     create_tarball("zipped_data/myfiles.tar.gz", "tiled_data_bygg", data_list, "missing_coords.json")
+    return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
+
+
+@app.route('/download-vl', methods=['POST', 'GET']) 
+def download_gpkg_files():
+    try:
+        os.remove("zipped_data/myfiles.tar.gz")
+    except:
+        pass
+    with open("file_to_coords_vl.json", "r") as ftc:
+        data = json.load(ftc)
+    data_list = request.get_json(())["filenames"]
+    missing_files_coords = {}
+    for file in data_list:
+        print(data[file])
+        missing_files_coords[file] = data[file]
+    with open("missing_coords.json", "w") as coords:
+        json.dump(missing_files_coords, coords, indent=4)
+    # with tarfile.open('zipped_data/myfiles.tar.gz', "w:gz") as tar:
+    #     tar.add("missing_coords.json")
+    create_tarball("zipped_data/myfiles.tar.gz", "tiled_data_vl", data_list, "missing_coords.json")
     return send_file('zipped_data/myfiles.tar.gz', as_attachment=True, download_name='example.tar')
 
 
