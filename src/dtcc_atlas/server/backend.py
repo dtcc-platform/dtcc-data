@@ -1,11 +1,16 @@
-from flask import Flask, request, jsonify, send_file
+import threading
+import webbrowser
+from flask import Flask, render_template, request, jsonify, send_file
 from shapely import box
 import tarfile
 import os
 import sys
 import json
 import time
+from pyproj import Proj, transform
+# import pyautogui
 
+base_url = "http://129.16.69.36:54321"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from atlas import prototype
 
@@ -15,6 +20,7 @@ app = Flask(__name__)
 start_time = time.time()
 laz_directory = "../../../../../65_3" #DATA LOCATION HERE
 zip_folder = "zipped_data"
+
 try:
     with open("atlas_lidar.json", "r") as f1:
         laz_data = json.load(f1)
@@ -24,14 +30,14 @@ except:
 
 try:
     with open("atlas_bygg.json", "r") as f2:
-        gpkg_data = json.load(f2)
+        bygg_data = json.load(f2)
 except:
     print("Missing bygg atlas. Trying to start without bygg atlas.")
     bygg_data = None
 
 try:
-    with open("atlas_vl.json", "r") as f2:
-        gpkg_data = json.load(f2)
+    with open("atlas_vl.json", "r") as f3:
+        vl_data = json.load(f3)
 except:
     print("Missing bygg atlas. Trying to start without bygg atlas.")
     vl_data = None
@@ -66,6 +72,68 @@ def create_tarball(output_filename, directory, file_list, extra_file = None):
     except:
         pass
 
+# Store coordinates globally
+coordinates = None
+
+# Initialize projections for WGS84 and SWEREF 99 TM
+wgs84 = Proj(proj='latlong', datum='WGS84')
+sweref99tm = Proj(init='epsg:3006')
+
+# HTML content for the map page
+
+@app.route('/open_map', methods=['GET'])
+def open_map():
+    """API endpoint to open the map."""
+    # Reset coordinates
+    global coordinates
+    coordinates = None
+    
+    # Open the map in a browser
+    threading.Thread(target=open_browser).start()
+    
+    return jsonify({'status': 'Map opened, please submit coordinates.'})
+
+@app.route('/map', methods=['GET'])
+def map_page():
+    """Serve the map to the user."""
+    return render_template('index.html')
+
+@app.route('/submit', methods=['POST'])
+def submit_coordinates():
+    global coordinates
+    data = request.json
+    coordinates = transform_coordinates(data['topLeft'], data['bottomRight'])
+    print("Transformed coordinates:", coordinates)
+    
+    # Gracefully shut down the server and close the browser
+    threading.Thread(target=shutdown_server_and_close_browser).start()
+    return jsonify({'status': 'success'})
+
+@app.route('/get_coordinates', methods=['GET'])
+def get_coordinates():
+    """API endpoint to retrieve the submitted coordinates."""
+    global coordinates
+    if coordinates is not None:
+        return jsonify({'coordinates': coordinates})
+    else:
+        return jsonify({'error': 'No coordinates have been submitted yet.'}), 400
+
+def transform_coordinates(top_left, bottom_right):
+    # Transform coordinates from WGS84 to SWEREF 99 TM
+    top_left_x, top_left_y = transform(wgs84, sweref99tm, top_left['lng'], top_left['lat'])
+    bottom_right_x, bottom_right_y = transform(wgs84, sweref99tm, bottom_right['lng'], bottom_right['lat'])
+    return {
+        'topLeft': {'x': top_left_x, 'y': top_left_y},
+        'bottomRight': {'x': bottom_right_x, 'y': bottom_right_y}
+    }
+
+def shutdown_server_and_close_browser():
+    time.sleep(1)
+    # pyautogui.hotkey('ctrl', 'w')  # Close the current tab
+
+def open_browser():
+    webbrowser.open(f'{base_url}/map')
+
 @app.route('/health',methods=['GET'])
 def health():
     current_time = time.time()
@@ -88,8 +156,10 @@ def process_bounding_box():
     serverfiles = []
     if type == "laz" and laz_data:
         serverfiles = findFiles(laz_data, selected_area)
-    elif type == "gpkg" and gpkg_data:
-        serverfiles = findFiles(gpkg_data, selected_area)
+    elif type == "bygg" and bygg_data:
+        serverfiles = findFiles(bygg_data, selected_area)
+    elif type == "vl":
+        serverfiles = findFiles(vl_data, selected_area)
     
     return jsonify({
         'received_points': serverfiles
@@ -97,7 +167,7 @@ def process_bounding_box():
     
 
 @app.route('/download-bygg', methods=['POST', 'GET']) 
-def download_gpkg_files():
+def download_bygg_files():
     try:
         os.remove("zipped_data/myfiles.tar.gz")
     except:
@@ -118,7 +188,7 @@ def download_gpkg_files():
 
 
 @app.route('/download-vl', methods=['POST', 'GET']) 
-def download_gpkg_files():
+def download_vl_files():
     try:
         os.remove("zipped_data/myfiles.tar.gz")
     except:

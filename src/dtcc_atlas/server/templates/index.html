@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sweden Map with Drawing Tool</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style>
+        #map {
+            height: 90vh;
+        }
+        #submit {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <button id="submit">Submit</button>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script>
+        var map = L.map('map').setView([62.0, 15.0], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        var drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false,
+                polygon: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: true
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+
+        var latestRectangle = null;
+
+        map.on(L.Draw.Event.CREATED, function (e) {
+            var type = e.layerType,
+                layer = e.layer;
+
+            if (type === 'rectangle') {
+                var bounds = layer.getBounds();
+                var topLeft = bounds.getNorthWest();
+                var bottomRight = bounds.getSouthEast();
+                
+                latestRectangle = {
+                    topLeft: topLeft,
+                    bottomRight: bottomRight
+                };
+
+                drawnItems.addLayer(layer);
+            }
+        });
+
+        map.on('draw:deleted', function (e) {
+            latestRectangle = null;
+        });
+
+        document.getElementById('submit').onclick = function() {
+            if (latestRectangle) {
+                fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(latestRectangle)
+                }).then(response => response.json())
+                  .then(data => {
+                      if (data.status === 'success') {
+                          alert('Coordinates submitted successfully!');
+                          window.close();
+                      }
+                  });
+            } else {
+                alert('Please draw a rectangle first.');
+            }
+        };
+    </script>
+</body>
+</html>
