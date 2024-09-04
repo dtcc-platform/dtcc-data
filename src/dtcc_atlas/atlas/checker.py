@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 from .prototype import findFiles
 from shapely.geometry import box, Polygon
@@ -129,7 +130,7 @@ def get_missing_files(bounding_box, url, type):
     server_files = get_files_from_server(bounding_box, url, type)
     if type == "laz":
         filename = "tester_laz.json"
-    elif type == "gpkg":
+    elif type == "bygg":
         filename = "tester_bygg.json"
     elif type == "vl":
         filename = "tester_vl.json"
@@ -155,17 +156,37 @@ def fix_atlas(type):
     Args:
         type (string): gpkg or laz
     """
+    data_path = os.path.dirname(sys.executable)
+    
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
     if type == "laz":
         update_laz_atlas("new_files", "tester_laz.json")
+        laz_data = os.path.join(data_path, "laz_data")
+        try:
+            os.makedirs(laz_data)
+        except:
+            pass
+        for file in os.listdir("new_files"):
+            os.rename(f"new_files/{file}", f"{laz_data}/{file}")
     elif type == "bygg":
         update_gpkg_atlas("new_files", "tester_bygg.json")
+        bygg_data = os.path.join(data_path, "bygg_data")
+        try:
+            os.makedirs(bygg_data)
+        except:
+            pass
+        for file in os.listdir("new_files"):
+            os.rename(f"new_files/{file}", f"{bygg_data}/{file}")
     elif type == "vl":
         update_gpkg_atlas("new_files", "tester_vl.json")
-    for file in os.listdir("new_files"):
-        full_path = os.path.join("new_files", file)
-        os.remove(full_path)
+        vl_data = os.path.join(data_path, "vl_data")
+        try:
+            os.makedirs(vl_data)
+        except:
+            pass
+        for file in os.listdir("new_files"):
+            os.rename(f"new_files/{file}", f"{vl_data}/{file}")
     os.remove("sample.tar")
     
 # if __name__ == "__main__":
