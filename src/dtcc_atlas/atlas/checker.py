@@ -156,8 +156,8 @@ def fix_atlas(type):
     Args:
         type (string): gpkg or laz
     """
-    data_path = os.path.dirname(sys.executable)
-    
+    exe_path = os.path.dirname(sys.executable)
+    data_path = os.path.join(exe_path, "dtcc-atlas-data")
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
     if type == "laz":
@@ -188,6 +188,7 @@ def fix_atlas(type):
         for file in os.listdir("new_files"):
             os.rename(f"new_files/{file}", f"{vl_data}/{file}")
     os.remove("sample.tar")
+    print("The data are saved in: ", data_path)
     
 # if __name__ == "__main__":
 #     # user = input("Enter username: ")

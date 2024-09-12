@@ -34,40 +34,28 @@ def update_laz_atlas(directory, atlas):
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {}
-    x_coords = list(data)
 
     for file in os.listdir(directory):
         if file.endswith(".laz"):
-            print(1)
             full_path = os.path.join(directory, file)
             min_x, min_y, max_x, max_y = get_tile_info(full_path)
             try:
-                index_x = x_coords.index(str(min_x))
+                data[str(min_x)][str(min_y)] = {"height": max_y-min_y,
+                                                        "width": max_x-min_x,
+                                                        "filename": file}
+            except:
+                data[str(min_x)] = {}
+                data[str(min_x)][str(min_y)] = {"height": max_y-min_y,
+                                                    "width": max_x-min_x,
+                                                    "filename": file}
+    sorted_catalog = OrderedDict()
+    for minx in sorted(data.keys()):
+        sorted_catalog[minx] = OrderedDict()
+        for miny in sorted(data[minx].keys()):
+            sorted_catalog[minx][miny] = data[minx][miny]
                 
-            except:
-                x_coords.append(str(min_x))
-                x_coords.sort()
-                index_x = x_coords.index(str(min_x))
-                data[x_coords[index_x]] = {}
-            print(x_coords[index_x])
-            try:
-                y_coords = list(data[x_coords[index_x]])
-            except:
-                y_coords = []
-            print(y_coords)
-            y_coords.append(str(min_y))
-            y_coords.sort()
-            print(y_coords)
-            index_y = y_coords.index(str(min_y))
-            # print(y_coords)
-            new_column = {}
-            data[x_coords[index_x]][y_coords[index_y]] = {"filename" : file, "width" : math.ceil(max_x-min_x), "height" : math.ceil(max_y-min_y)}
-            for i in range(len(y_coords)):
-                new_column[y_coords[i]] = data[x_coords[index_x]][y_coords[i]]
-
-            data[x_coords[index_x]] = new_column
     with open(atlas, 'w') as json_file:
-        json.dump(data, json_file, indent=4)
+        json.dump(sorted_catalog, json_file, indent=4)
 
 
 def update_gpkg_atlas(directory, atlas):
@@ -87,9 +75,7 @@ def update_gpkg_atlas(directory, atlas):
     except:
         data = {}
     for item in missing_filenames:
-        print(item)
         coords = missing_filenames[item]
-        print(coords)
         try:
             data[str(coords[0])][str(coords[1])] = {"height": 10000.0,
                                                     "width": 10000.0,
@@ -105,4 +91,4 @@ def update_gpkg_atlas(directory, atlas):
         for miny in sorted(data[minx].keys()):
             sorted_catalog[minx][miny] = data[minx][miny]
     with open(atlas, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(sorted_catalog, f, indent=4)
