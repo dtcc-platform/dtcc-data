@@ -1,3 +1,5 @@
+# Before installing and using make sure you add your credentials and defualt data directory at the parameters.py file  
+
 # Download the demo on server side
 git clone dtcc-data
 

@@ -11,10 +11,18 @@ from .utils import update_gpkg_atlas, update_laz_atlas
 from tqdm import tqdm
 import paramiko
 from getpass import getpass
+from . import parameters
 
 
 
-bounds = box(400000, 7000000, 456646, 7200000)
+def checkDataDirectory():
+    params = parameters.default()
+    data_directory = params["default_directory"]
+    if os.path.exists(data_directory):
+        return True
+    else:
+        print("The data directory you entered is invalid")
+        print("Please go to ", os.path.dirname(os.path.abspath(__file__)), "and change the relative field in the parameters.py file") 
 
 def authenticate(username, password):
     import pam  # Import here to avoid error if not run on Linux
@@ -29,9 +37,10 @@ def setSSH():
     """
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    params = parameters.default()
     try:
-        username = input("Enter your username: ")
-        password = getpass("Enter your password: ")
+        username = params["username"]
+        password = params["password"]
         # Try to authenticate locally using PAM
         if authenticate(username, password):
             print("PAM authentication successful.")
@@ -43,6 +52,7 @@ def setSSH():
             flag = True
         else:
             print("PAM authentication failed.")
+            print("Please check your credentials at ", os.path.dirname(os.path.abspath(__file__)))
             flag = False
     finally:
         ssh.close()
@@ -127,6 +137,8 @@ def get_missing_files(bounding_box, url, type):
         bounding_box (shapely box): Bounding box
         type (string): gpkg or laz
     """
+    if not checkDataDirectory():
+        return
     server_files = get_files_from_server(bounding_box, url, type)
     if type == "laz":
         filename = "tester_laz.json"
@@ -156,8 +168,9 @@ def fix_atlas(type):
     Args:
         type (string): gpkg or laz
     """
-    exe_path = os.path.dirname(sys.executable)
-    data_path = os.path.join(exe_path, "dtcc-atlas-data")
+    
+    user_data_dir = parameters.default()["default_directory"]
+    data_path = os.path.join(user_data_dir, "dtcc-atlas-data")
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
     if type == "laz":
@@ -188,6 +201,7 @@ def fix_atlas(type):
         for file in os.listdir("new_files"):
             os.rename(f"new_files/{file}", f"{vl_data}/{file}")
     os.remove("sample.tar")
+    os.removedirs("new_files")
     print("The data are saved in: ", data_path)
     
 # if __name__ == "__main__":
