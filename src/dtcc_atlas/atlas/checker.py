@@ -22,7 +22,7 @@ def checkDataDirectory():
         return True
     else:
         print("The data directory you entered is invalid")
-        print("Please go to ", os.path.dirname(os.path.abspath(__file__)), "and change the relative field in the parameters.py file") 
+        print("Please change the default directory at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py")) 
 
 def authenticate(username, password):
     import pam  # Import here to avoid error if not run on Linux
@@ -52,7 +52,7 @@ def setSSH():
             flag = True
         else:
             print("PAM authentication failed.")
-            print("Please check your credentials at ", os.path.dirname(os.path.abspath(__file__)))
+            print("Please check your credentials at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py"))
             flag = False
     finally:
         ssh.close()
@@ -139,7 +139,13 @@ def get_missing_files(bounding_box, url, type):
     """
     if not checkDataDirectory():
         return
-    server_files = get_files_from_server(bounding_box, url, type)
+    if not setSSH():
+        return
+    try:
+        server_files = get_files_from_server(bounding_box, url, type)
+    except:
+        print("The server seems to be down, try again later")
+        return
     if type == "laz":
         filename = "tester_laz.json"
     elif type == "bygg":
@@ -190,6 +196,10 @@ def fix_atlas(type):
         except:
             pass
         for file in os.listdir("new_files"):
+            if file.endswith("json"):
+                file = os.path.join("new_files", file)
+                os.remove(file)
+                continue
             os.rename(f"new_files/{file}", f"{bygg_data}/{file}")
     elif type == "vl":
         update_gpkg_atlas("new_files", "tester_vl.json")
@@ -199,6 +209,10 @@ def fix_atlas(type):
         except:
             pass
         for file in os.listdir("new_files"):
+            if file.endswith("json"):
+                file = os.path.join("new_files", file)
+                os.remove(file)
+                continue
             os.rename(f"new_files/{file}", f"{vl_data}/{file}")
     os.remove("sample.tar")
     os.removedirs("new_files")
