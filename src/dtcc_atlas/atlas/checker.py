@@ -179,7 +179,7 @@ def fix_atlas(type, parameters):
         type (string): gpkg or laz
     """
     
-    user_data_dir = parameters["default_directory"]
+    user_data_dir = parameters["cache_directory"]
     data_path = os.path.join(user_data_dir, "dtcc-atlas-data")
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
