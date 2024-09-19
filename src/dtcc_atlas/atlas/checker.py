@@ -16,9 +16,9 @@ from getpass import getpass
 
 def checkDataDirectory(parameters):
     try:
-        data_directory = parameters["default_directory"]
+        data_directory = parameters["cache_directory"]
     except:
-        print("Please enter your directory in the parameters dictionary as 'default_directory'")
+        print("Please enter your directory in the parameters dictionary as 'cache_directory'")
         return False
     if os.path.exists(data_directory):
         return True
