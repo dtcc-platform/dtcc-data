@@ -4,14 +4,14 @@ from .checker import get_missing_files
 
 url = 'http://129.16.69.36:54321' #HOST IP
 
-def download_footprints(bbox):
-    return get_missing_files(bbox, url, "bygg")
+def download_footprints(bbox, parameters):
+    return get_missing_files(bbox, url, "bygg", parameters)
 
-def download_laz(bbox):
-    return get_missing_files(bbox, url, "laz")
+def download_laz(bbox, parameters):
+    return get_missing_files(bbox, url, "laz", parameters)
 
-def download_roadnetwork(bbox):
-    return get_missing_files(bbox, url, "vl")
+def download_roadnetwork(bbox, parameters):
+    return get_missing_files(bbox, url, "vl", parameters)
 
 def get_bounding_box():
     # Base URL of the Flask server

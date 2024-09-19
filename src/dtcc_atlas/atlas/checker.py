@@ -11,25 +11,28 @@ from .utils import update_gpkg_atlas, update_laz_atlas
 from tqdm import tqdm
 import paramiko
 from getpass import getpass
-from . import parameters
 
 
 
-def checkDataDirectory():
-    params = parameters.default()
-    data_directory = params["default_directory"]
+def checkDataDirectory(parameters):
+    try:
+        data_directory = parameters["default_directory"]
+    except:
+        print("Please enter your directory in the parameters dictionary as 'default_directory'")
+        return False
     if os.path.exists(data_directory):
         return True
     else:
         print("The data directory you entered is invalid")
-        print("Please change the default directory at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py")) 
+        return False
+        # print("Please change the default directory at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py")) 
 
 def authenticate(username, password):
     import pam  # Import here to avoid error if not run on Linux
     p = pam.pam()
     return p.authenticate(username, password)
 
-def setSSH():
+def setSSH(parameters):
     """
         Authentication using paramiko
     Returns:
@@ -37,10 +40,14 @@ def setSSH():
     """
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    params = parameters.default()
     try:
-        username = params["username"]
-        password = params["password"]
+        username = parameters["username"]
+        password = parameters["password"]
+    except:
+        print("Please enter your username and password in the parameters dictionary as 'username', 'password' respectively")
+        return False
+    try:
+        
         # Try to authenticate locally using PAM
         if authenticate(username, password):
             print("PAM authentication successful.")
@@ -52,7 +59,7 @@ def setSSH():
             flag = True
         else:
             print("PAM authentication failed.")
-            print("Please check your credentials at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py"))
+            # print("Please check your credentials at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py"))
             flag = False
     finally:
         ssh.close()
@@ -130,16 +137,16 @@ def download_missing_files(missing_files, url, type):
                     f.write(chunk)
         print(f"File downloaded successfully: {local_filename}")
 
-def get_missing_files(bounding_box, url, type):
+def get_missing_files(bounding_box, url, type, parameters):
     """Preprocess the data and calls previous functions
 
     Args:
         bounding_box (shapely box): Bounding box
         type (string): gpkg or laz
     """
-    if not checkDataDirectory():
+    if not checkDataDirectory(parameters):
         return
-    if not setSSH():
+    if not setSSH(parameters):
         return
     try:
         server_files = get_files_from_server(bounding_box, url, type)
@@ -165,17 +172,17 @@ def get_missing_files(bounding_box, url, type):
     if missing_files.size != 0:
         print(missing_files)
         download_missing_files(missing_files, url, type)
-        fix_atlas(type)
+        fix_atlas(type, parameters)
     
     # print(missing_files)
-def fix_atlas(type):
+def fix_atlas(type, parameters):
     """Handles the extraction of the downloaded data and calls respective functions to update client side atlas
 
     Args:
         type (string): gpkg or laz
     """
     
-    user_data_dir = parameters.default()["default_directory"]
+    user_data_dir = parameters["default_directory"]
     data_path = os.path.join(user_data_dir, "dtcc-atlas-data")
     with tarfile.open("sample.tar", "r") as new_files:
         new_files.extractall("new_files")
