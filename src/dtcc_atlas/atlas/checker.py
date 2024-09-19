@@ -47,20 +47,17 @@ def setSSH(parameters):
         print("Please enter your username and password in the parameters dictionary as 'username', 'password' respectively")
         return False
     try:
-        
         # Try to authenticate locally using PAM
-        if authenticate(username, password):
-            print("PAM authentication successful.")
-            # Connect via SSH
-            ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
-            print("Passed")
-            stdin, stdout, stderr = ssh.exec_command('uname -a')
-            print(stdout.read().decode()) 
-            flag = True
-        else:
-            print("PAM authentication failed.")
-            # print("Please check your credentials at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py"))
-            flag = False
+        # Connect via SSH
+        ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
+        print("Passed")
+        stdin, stdout, stderr = ssh.exec_command('uname -a')
+        print(stdout.read().decode()) 
+        flag = True
+    except:
+        print("Authentication failed")
+            
+        flag = False
     finally:
         ssh.close()
     return flag
