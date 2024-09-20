@@ -1,6 +1,6 @@
 # DTCC Data
 
-DTCC Data provides the database and data API for DTCC Platform.
+DTCC Data provides an initial datalake scraped of SLU's LM snapshot repository and an accompanying API for DTCC Platform.
 
 This project is part of the
 [Digital Twin Platform (DTCC Platform)](https://github.com/dtcc-platform/)
