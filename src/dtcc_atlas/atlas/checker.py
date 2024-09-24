@@ -1,29 +1,31 @@
 import sys
 import numpy as np
-from .prototype import findFiles
-from shapely.geometry import box, Polygon
 import requests
 import subprocess
 import json
 import os
 import tarfile
-from .utils import update_gpkg_atlas, update_laz_atlas
-from tqdm import tqdm
 import paramiko
+from tqdm import tqdm
 from getpass import getpass
 
+from .prototype import find_files
+from .logging import info,warning,error,critical,file_diff_info
+from .utils import update_gpkg_atlas, update_laz_atlas
+
+from dtcc_model import Bounds
 
 
-def checkDataDirectory(parameters):
+def check_data_directory(parameters):
     try:
         data_directory = parameters["cache_directory"]
     except:
-        print("Please enter your directory in the parameters dictionary as 'cache_directory'")
+        info("Please enter your directory in the parameters dictionary as 'cache_directory'")
         return False
     if os.path.exists(data_directory):
         return True
     else:
-        print("The data directory you entered is invalid")
+        info("The data directory you entered is invalid")
         return False
         # print("Please change the default directory at ", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parameters.py")) 
 
@@ -32,7 +34,7 @@ def authenticate(username, password):
     p = pam.pam()
     return p.authenticate(username, password)
 
-def setSSH(parameters):
+def set_ssh(parameters):
     """
         Authentication using paramiko
     Returns:
@@ -44,25 +46,25 @@ def setSSH(parameters):
         username = parameters["username"]
         password = parameters["password"]
     except:
-        print("Please enter your username and password in the parameters dictionary as 'username', 'password' respectively")
+        info("Please enter your username and password in the parameters dictionary as 'username', 'password' respectively")
         return False
     try:
         # Try to authenticate locally using PAM
         # Connect via SSH
         ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
-        print("Passed")
+        info("SSH connection established successfully.")
         stdin, stdout, stderr = ssh.exec_command('uname -a')
-        print(stdout.read().decode()) 
+        info(stdout.read().decode()) 
         flag = True
     except:
-        print("Authentication failed")
+        info("Authentication failed")
             
         flag = False
     finally:
         ssh.close()
     return flag
 
-def filesToSend(local, server):
+def files_to_send(local, server):
     """
     Compares lists of strings that are the filenames of the client and the server to check which files are missing
     Args:
@@ -80,29 +82,30 @@ def filesToSend(local, server):
     temp3 = np.concatenate((dif1, dif2))
     return temp3
 
-def get_files_from_server(bounding_box, url, type):
+def get_files_from_server(bounding_box: Bounds, url, type):
     """sends request to the server with the initial bounding box and expects a list of filenames 
         that the server found inside the bounding box
 
     Args:
-        bounding_box (Shapely box): Bounding box
+        bounding_box (dtcc_model.Bounds): Bounding box
         url (string): The server url for the request
         type (string): Type of data being requested (laz of gpkg)
 
     Returns:
         _type_: _description_
     """
-    payload = {"points" : bounding_box.bounds, "type": type}
+    payload = {"points" : bounding_box.tuple, "type": type}
     url = url + '/api/post/boundingbox'
     response = requests.post(url, json=payload)
 
     # Check the status code to see if the request was successful
     if response.status_code == 200:
-        print('Success!')
+        info(f'Successfully retrieved {len(response.json()['received_points'])} file(s) from the server.!')
         return response.json()["received_points"]
     else:
-        print('Failed to get a valid response:', response.status_code)
-        print('Response:', response.text)
+        info('Failed to get a valid response:'+ str(response.status_code))
+        info('Response: ')
+        print(response.text)
         
     
 def download_missing_files(missing_files, url, type):
@@ -132,23 +135,23 @@ def download_missing_files(missing_files, url, type):
                 for chunk in r.iter_content(chunk_size=8192):
                     progress.update(len(chunk))
                     f.write(chunk)
-        print(f"File downloaded successfully: {local_filename}")
+        info(f"File downloaded successfully: " + str(local_filename))
 
-def get_missing_files(bounding_box, url, type, parameters):
+def get_missing_files(bounding_box: Bounds, url, type, parameters):
     """Preprocess the data and calls previous functions
 
     Args:
-        bounding_box (shapely box): Bounding box
+        bounding_box (dtcc_model.Bounds): Bounding box
         type (string): gpkg or laz
     """
-    if not checkDataDirectory(parameters):
+    if not check_data_directory(parameters):
         return
-    if not setSSH(parameters):
+    if not set_ssh(parameters):
         return
     try:
         server_files = get_files_from_server(bounding_box, url, type)
     except:
-        print("The server seems to be down, try again later")
+        info("The server seems to be down, try again later")
         return
     if type == "laz":
         filename = "tester_laz.json"
@@ -160,14 +163,15 @@ def get_missing_files(bounding_box, url, type, parameters):
         with open(filename, 'r') as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
-        print("local atlas was not found")
+        warning("Local atlas was not found")
         data = {}
-    local_files = findFiles(data, bounding_box)
-    print(local_files, server_files)
-    missing_files = filesToSend(local_files, server_files)
+    local_files = find_files(data, bounding_box)
+    #Revert to print both lists if it suits the usecase better.
+    file_diff_info(local_files, server_files,True)
+    missing_files = files_to_send(local_files, server_files)
     
     if missing_files.size != 0:
-        print(missing_files)
+        # print(missing_files)
         download_missing_files(missing_files, url, type)
         fix_atlas(type, parameters)
     
@@ -220,12 +224,12 @@ def fix_atlas(type, parameters):
             os.rename(f"new_files/{file}", f"{vl_data}/{file}")
     os.remove("sample.tar")
     os.removedirs("new_files")
-    print("The data are saved in: ", data_path)
+    info("The data are saved in: "+ str(data_path))
     
 # if __name__ == "__main__":
 #     # user = input("Enter username: ")
 #     # passwd = input("Enter password: ")
-#     # if setSSH():
+#     # if set_ssh():
 #     get_missing_files(bounds,url,"gpkg")
              
     

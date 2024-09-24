@@ -14,7 +14,7 @@ base_url = "http://129.16.69.36:54321"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from atlas import prototype
 
-findFiles = prototype.findFiles
+findFiles = prototype.find_files
 
 app = Flask(__name__)
 start_time = time.time()

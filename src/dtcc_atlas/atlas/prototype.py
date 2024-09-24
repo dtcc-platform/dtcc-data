@@ -3,6 +3,8 @@ import time
 from shapely.geometry import box, Polygon
 import geopandas as gpd
 
+from .logging import debug,info,warning,error
+
 def binary_search_within_range(arr, low_bound, high_bound):
     """search of a coordinate within range 
 
@@ -35,7 +37,7 @@ def binary_search_within_range(arr, low_bound, high_bound):
 
 
 
-def findTiles(data, bounds):
+def find_tiles(data, bounds):
     """Finds all the tiles that are withing the bounding box 
 
     Args:
@@ -54,9 +56,9 @@ def findTiles(data, bounds):
     index_x = binary_search_within_range(x_data, bounds[0]-constant, bounds[0])
     if not index_x and bounds[0] < int(x_data[0]):
         index_x = 0
-    print(bounds[0], x_data[0])
+    # print(bounds[0], x_data[0])
     if index_x == None:
-        print("Server does not contain data requested")
+        info("Server does not contain data requested")
         return []
     x_min = x_data[index_x]
     tiles = []
@@ -66,7 +68,7 @@ def findTiles(data, bounds):
         if not index_y and bounds[1] <= int(y_data[0]):
             index_y = 0
         if index_y == None:
-            print("Server does not contain data requested")
+            info("Server does not contain data requested")
             return []
         y_min = y_data[index_y]
         previous_max = 0
@@ -97,8 +99,8 @@ def findTiles(data, bounds):
     return tiles
 # print(tiles)
 
-def findFiles(data, selected_area):
-    """Extracts the information gived by the tiles of the findTiles and returns only the filenames
+def find_files(data, selected_area):
+    """Extracts the information gived by the tiles of the find_tiles and returns only the filenames
 
     Args:
         data (directory): The atlas data
@@ -108,15 +110,22 @@ def findFiles(data, selected_area):
         list[string]: The filenames inside the bounding box
     """
     start = time.time()
+
+    # Converting dtcc_model.Bounds object to shapely.Polygon for necassery checks.
+    shply_selected_area = Polygon(((selected_area.xmin,selected_area.ymin),
+                                   (selected_area.xmax,selected_area.ymin),
+                                   (selected_area.xmax,selected_area.ymax),
+                                   (selected_area.xmin,selected_area.ymax)))
+    
     hardcoded_bounds = Polygon([(266646,5921055), (516646,5921055),(766646,6171055),(1016646,6921055), (516646,5421055), (516646,7671055), (266646,7421055), (266646,5921055)])
-    if hardcoded_bounds.covers(selected_area):
-        print("Finding Files")
-    elif hardcoded_bounds.intersects(selected_area):
-        print("Some of the area you provided is out of bounds, Computing the area only inside bounds...")
+    if hardcoded_bounds.covers(shply_selected_area):
+        info("Finding files...")
+    elif hardcoded_bounds.intersects(shply_selected_area):
+        info("Some of the area you provided is out of bounds, Computing the area only inside bounds...")
     else:
-        print("The area you provided is out of bounds...")
+        info("The area you provided is out of bounds...")
         return []
-    tiles = findTiles(data, selected_area.bounds)
+    tiles = find_tiles(data, selected_area.tuple)
 
 
     if not tiles:
@@ -126,10 +135,11 @@ def findFiles(data, selected_area):
     spec1 = time.time()
     merged_tiles = gdf.unary_union
     spec2 = time.time()
-    print(spec2-spec1)
-    missing_areas = selected_area.difference(merged_tiles)
+    merging_time = spec2-spec1
+    info(f"Merging tiles elapsed time: {merging_time:.8f} sec" ) 
+    missing_areas = shply_selected_area.difference(merged_tiles)
 
-    intersecting_tiles = gdf[gdf.intersects(selected_area)]
+    intersecting_tiles = gdf[gdf.intersects(shply_selected_area)]
     files = intersecting_tiles['filename'].tolist()
 
 
