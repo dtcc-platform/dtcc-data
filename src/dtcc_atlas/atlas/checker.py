@@ -61,31 +61,30 @@ def set_ssh(parameters):
         print(f"You haven't registered yet, please add the password for username {username}")
         password = getpass.getpass()
         keyring.set_password(SERVICE, username, password)
-
-    try:
-        # Try to authenticate locally using PAM
-        # Connect via SSH
-        ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
-        info("SSH connection established successfully.")
-        stdin, stdout, stderr = ssh.exec_command('uname -a')
-        info(stdout.read().decode()) 
-        flag = True
-    except:
-        info("Authentication failed")
-        info(f"Please check your username is {username}")
-        info("Do you want to change the password for this username?y/n")
-        answer = input()
-        if answer == "y":
-            password = getpass.getpass()
-            keyring.set_password(SERVICE, username, password)
-        elif answer == "n":
-            pass
-        else:
-            info("Please enter only y or n")
-            
-        flag = False
-    finally:
-        ssh.close()
+    flag  = False
+    while not flag:
+        try:
+            ssh.connect("develop.dtcc.chalmers.se", username=username, password=password)
+            info("SSH connection established successfully.")
+            stdin, stdout, stderr = ssh.exec_command('uname -a')
+            info(stdout.read().decode()) 
+            flag = True
+        except:
+            info("Authentication failed")
+            info(f"Please check your username is {username}")
+            info("Do you want to change the password for this username?y/n")
+            answer = input()
+            if answer == "y":
+                password = getpass.getpass()
+                keyring.set_password(SERVICE, username, password)
+            elif answer == "n":
+                break
+            else:
+                info("Please enter only y or n")
+                
+            flag = False
+        finally:
+            ssh.close()
     return flag
 
 def files_to_send(local, server):
