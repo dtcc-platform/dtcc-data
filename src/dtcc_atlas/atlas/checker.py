@@ -7,7 +7,9 @@ import os
 import tarfile
 import paramiko
 from tqdm import tqdm
-from getpass import getpass
+import getpass
+import keyring
+from keyrings.alt.file import PlaintextKeyring
 
 from .prototype import find_files
 from .logging import info,warning,error,critical,file_diff_info
@@ -15,7 +17,7 @@ from .utils import update_gpkg_atlas, update_laz_atlas
 
 from dtcc_model import Bounds
 
-
+    
 def check_data_directory(parameters):
     try:
         data_directory = parameters["cache_directory"]
@@ -42,12 +44,24 @@ def set_ssh(parameters):
     """
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    keyring.set_keyring(PlaintextKeyring())
+    SERVICE = "dtcc-data"
     try:
         username = parameters["username"]
-        password = parameters["password"]
     except:
-        info("Please enter your username and password in the parameters dictionary as 'username', 'password' respectively")
+        info("Please enter your username in the parameters dictionary as 'username'")
         return False
+    if not parameters["username"].strip():
+        print("Username was empty, please enter a username")
+        return False
+    
+    password = keyring.get_password(SERVICE, username)
+    
+    if not password:
+        print(f"You haven't registered yet, please add the password for username {username}")
+        password = getpass.getpass()
+        keyring.set_password(SERVICE, username, password)
+
     try:
         # Try to authenticate locally using PAM
         # Connect via SSH
@@ -58,6 +72,16 @@ def set_ssh(parameters):
         flag = True
     except:
         info("Authentication failed")
+        info(f"Please check your username is {username}")
+        info("Do you want to change the password for this username?y/n")
+        answer = input()
+        if answer == "y":
+            password = getpass.getpass()
+            keyring.set_password(SERVICE, username, password)
+        elif answer == "n":
+            pass
+        else:
+            info("Please enter only y or n")
             
         flag = False
     finally:
@@ -100,7 +124,7 @@ def get_files_from_server(bounding_box: Bounds, url, type):
 
     # Check the status code to see if the request was successful
     if response.status_code == 200:
-        info(f'Successfully retrieved {len(response.json()['received_points'])} file(s) from the server.!')
+        info(f'Successfully retrieved {len(response.json()["received_points"])} file(s) from the server.!')
         return response.json()["received_points"]
     else:
         info('Failed to get a valid response:'+ str(response.status_code))
