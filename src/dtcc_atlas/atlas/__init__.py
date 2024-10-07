@@ -6,4 +6,4 @@ from .atlas import (
   get_bounding_box
 )
 
-__all__ = ["download_footprints", 'download_pointcloud','download_roadnetwork']
+__all__ = ["download_footprints", 'download_pointcloud','download_roadnetwork', 'get_bounding_box']
