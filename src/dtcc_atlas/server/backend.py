@@ -1,13 +1,13 @@
 import threading
 import webbrowser
 from flask import Flask, render_template, request, jsonify, send_file
-from shapely import box
 import tarfile
 import os
 import sys
 import json
 import time
 from pyproj import Proj, transform
+from dtcc_model import Bounds
 # import pyautogui
 
 base_url = "http://129.16.69.36:54321"
@@ -96,6 +96,8 @@ def open_map():
 @app.route('/map', methods=['GET'])
 def map_page():
     """Serve the map to the user."""
+    global coordinates
+    coordinates = None
     return render_template('index.html')
 
 @app.route('/submit', methods=['POST'])
@@ -152,7 +154,7 @@ def process_bounding_box():
     type = data["type"]
     # Extract points
     points = data['points']
-    selected_area = box(points[0], points[1], points[2], points[3])
+    selected_area = Bounds(points[0], points[1], points[2], points[3])
     serverfiles = []
     if type == "laz" and laz_data:
         serverfiles = findFiles(laz_data, selected_area)
