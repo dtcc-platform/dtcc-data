@@ -10,9 +10,9 @@ from tqdm import tqdm
 from getpass import getpass
 
 from .prototype import find_files
-from .logging import info,warning,error,critical,file_diff_info
 from .utils import update_gpkg_atlas, update_laz_atlas
 
+from dtcc_data.logging import info,warning,error,critical,file_diff_info
 from dtcc_core.model import Bounds
 
 

@@ -2,8 +2,9 @@ import time
 import requests
 import webbrowser
 
-from .logging import debug,info,warning,error
 from .checker import get_missing_files
+
+from dtcc_data.logging import debug,info,warning,error
 
 # Host IP
 URL = 'http://129.16.69.36:54321' 
