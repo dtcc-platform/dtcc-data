@@ -131,7 +131,7 @@ def get_files_from_server(bounding_box: Bounds, url, type):
         print(response.text)
         
     
-def download_missing_files(missing_files, url, type):
+def download_missing_files(missing_files, url, type, parameters):
     """Sends request to the server with the filenames of the missing files and downloads them as a tar
 
     Args:
@@ -139,6 +139,10 @@ def download_missing_files(missing_files, url, type):
         url (string): Server's url
         type (string): bygg, laz or vl
     """
+    if not check_data_directory(parameters):
+        return
+    if type != "laz" and not set_ssh(parameters):
+        return
     if type == "laz":
         url = url + '/download-laz'
     elif type == "bygg":
@@ -167,10 +171,6 @@ def get_missing_files(bounding_box: Bounds, url, type, parameters):
         bounding_box (dtcc_model.Bounds): Bounding box
         type (string): gpkg or laz
     """
-    if not check_data_directory(parameters):
-        return
-    if not set_ssh(parameters):
-        return
     try:
         server_files = get_files_from_server(bounding_box, url, type)
     except:
@@ -194,11 +194,21 @@ def get_missing_files(bounding_box: Bounds, url, type, parameters):
     missing_files = files_to_send(local_files, server_files)
     
     if missing_files.size != 0:
-        # print(missing_files)
-        download_missing_files(missing_files, url, type)
+        info("There are missing files locally, do you want to download them? Downloading extra files requires authentication.")
+        info("Answer with y,n")
+        flag = True
+        while flag:
+            answer = input()
+            if answer == "y":
+                download_missing_files(missing_files, url, type, parameters)
+                flag = False
+            elif answer == "n":
+                return
+            else:
+                print("Please enter y or n only.")
+        
         fix_atlas(type, parameters)
     
-    # print(missing_files)
 def fix_atlas(type, parameters):
     """Handles the extraction of the downloaded data and calls respective functions to update client side atlas
 
