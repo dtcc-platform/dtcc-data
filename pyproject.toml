@@ -35,3 +35,6 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[tool.setuptools.package-data]
+"dtcc_atlas.atlas.templates" = ["*.html"]
