@@ -2,8 +2,8 @@ import psycopg
 import h5py
 import numpy as np
 from pathlib import Path
-import dtcc_io as io
-from dtcc_model import Bounds
+import dtcc_core.io as io
+from dtcc_core.model import Bounds
 
 from time import sleep
 

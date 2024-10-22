@@ -3,7 +3,7 @@ import time
 from shapely.geometry import box, Polygon
 import geopandas as gpd
 
-from .logging import debug,info,warning,error
+from dtcc_data.logging import debug,info,warning,error
 
 def binary_search_within_range(arr, low_bound, high_bound):
     """search of a coordinate within range 
