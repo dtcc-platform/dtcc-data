@@ -1,0 +1,31 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11==2.10.*", "wheel"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "dtcc-template"
+version = "0.0.1"
+description = "DTCC Template"
+readme = "README.md"
+authors = [
+  { name = "Anders Logg", email = "logg@chalmers.se" },
+  { name = "Vasilis Naserentin", email = "vasilis.naserentin@chalmers.se" },
+  { name = "Dag Wästberg", email = "dwastberg@gmail.com" },
+]
+requires-python = ">=3.10"
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: C++",
+  "License :: OSI Approved :: MIT License",
+]
+dependencies = ["pybind11 >= 2.10.0, < 2.11.0"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+dtcc-template-main = "dtcc_template.scripts:main.main"
+
+[tool.scikit-build]
+wheel.expand-macos-universal-tags = true
