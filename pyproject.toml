@@ -18,10 +18,14 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["fastapi",
-"requests",
-"follium",
-"pyproj"]
+dependencies = [
+  "aiohttp==3.11.11",
+  "fastapi==0.115.6",
+  "folium==0.19.2",
+  "laspy==2.5.4",
+  "pyproj==3.7.0",
+  "requests==2.32.3"
+]
 
 [project.optional-dependencies]
 test = ["pytest"]
