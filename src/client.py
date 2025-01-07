@@ -223,7 +223,7 @@ def download_lidar(user_bbox, buffer_val=0, base_url="http://127.0.0.1:8000",
 # ------------------------------------------------------------------------
 # Example usage: only 3 lines needed
 # ------------------------------------------------------------------------
-if __name__ == "__main__":
-    user_bbox = (267000, 6519000, 268000, 6521000)
-    buffer_val = 100
-    download_lidar(user_bbox, buffer_val)
+#if __name__ == "__main__":
+#    user_bbox = (267000, 6519000, 268000, 6521000)
+#    buffer_val = 100
+#    download_lidar(user_bbox, buffer_val)
