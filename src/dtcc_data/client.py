@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# Copyright (C) 2024 Vasilis Naserentin
+# Licensed under the MIT License
 
 import os
 import requests
