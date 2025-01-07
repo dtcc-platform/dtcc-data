@@ -17,7 +17,7 @@ This project is documented as part of the
 
 * [Dag Wästerberg](https://chalmersindustriteknik.se/sv/medarbetare/dag-wastberg/)
 * [Anders Logg](http://anders.logg.org)
-* [Vasilis Naserentin](https://www.chalmers.se/en/Staff/Pages/vasnas.aspx)
+* [Vasilis Naserentin](https://www.chalmers.se/en/persons/vasnas/)
 * [Themis Arvanitis](https://dtcc.chalmers.se)
 
 
