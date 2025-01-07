@@ -31,7 +31,7 @@ dependencies = [
 test = ["pytest"]
 
 [project.scripts]
-dtcc-template-main = "dtcc_template.scripts:main.main"
+dtcc-data-main = "dtcc_data.scripts:main.main"
 
 [tool.scikit-build]
 wheel.expand-macos-universal-tags = true
