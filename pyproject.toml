@@ -1,6 +1,6 @@
 [build-system]
 requires = ["scikit-build-core", "wheel"]
-build-backend = "scikit_build_core.build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "dtcc-data"
