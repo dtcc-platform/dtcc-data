@@ -5,16 +5,16 @@ import json
 import requests
 import pyproj
 import geopandas as gpd
-from shapely.geometry import box, Polygon
+from shapely.geometry import box, Polygon, LineString
 
 # ------------------------------------------------------------------------
-# 1. Paths & Setup
+# 1) Global constants/paths
 # ------------------------------------------------------------------------
-CACHE_METADATA_FILE = "cache_metadata.json"  # stores [ { "bbox": [...], "filepath": "...", ...}, ... ]
+CACHE_METADATA_FILE = "cache_metadata.json"  # store bounding box + file records here
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # ------------------------------------------------------------------------
-# 2. Utilities for bounding boxes
+# 2) Utilities for bounding boxes
 # ------------------------------------------------------------------------
 def is_superset_bbox(bbox_sup, bbox_sub):
     """
@@ -40,7 +40,7 @@ def filter_gdf_to_bbox(gdf, bbox_3006):
     return gdf[gdf.geometry.intersects(bbox_poly)].copy()
 
 # ------------------------------------------------------------------------
-# 3. Metadata I/O
+# 3) Metadata I/O
 # ------------------------------------------------------------------------
 def load_cache_metadata(meta_path=CACHE_METADATA_FILE):
     if not os.path.exists(meta_path):
@@ -64,7 +64,7 @@ def find_superset_record(bbox_3006, records):
     return None
 
 # ------------------------------------------------------------------------
-# 4. Overpass logic for building footprints
+# 4) Overpass logic
 # ------------------------------------------------------------------------
 def download_overpass_buildings(bbox_3006):
     """
@@ -72,25 +72,23 @@ def download_overpass_buildings(bbox_3006):
     2) Query Overpass for building footprints in that bounding box.
     3) Return a GeoDataFrame in EPSG:3006.
     """
-    # A) Transform bounding box
     transformer = pyproj.Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True)
     xmin, ymin, xmax, maxy = bbox_3006
     min_lon, min_lat = transformer.transform(xmin, ymin)
     max_lon, max_lat = transformer.transform(xmax, maxy)
 
-    # B) Overpass QL
     query = f"""
     [out:json];
     way["building"]({min_lat},{min_lon},{max_lat},{max_lon});
     (._;>;);
     out body;
     """
-    print(f"Querying Overpass for bounding box = {bbox_3006}")
+    print(f"Querying Overpass for buildings in bbox={bbox_3006}")
     resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
     resp.raise_for_status()
     data = resp.json()
 
-    # C) Parse
+    # Parse
     nodes = {}
     for elem in data.get("elements", []):
         if elem["type"] == "node":
@@ -112,10 +110,9 @@ def download_overpass_buildings(bbox_3006):
                     coords.append(coords[0])  # close ring
                 footprints_ll.append(coords)
 
-    # D) Convert to polygons in EPSG:4326
+    # Convert lat-lon -> polygons in EPSG:4326
     polygons_4326 = []
     for ring in footprints_ll:
-        # ring is [(lat, lon), ...]
         ring_lonlat = [(lon, lat) for (lat, lon) in ring]
         polygons_4326.append(Polygon(ring_lonlat))
 
@@ -124,69 +121,159 @@ def download_overpass_buildings(bbox_3006):
         geometry=polygons_4326,
         crs="EPSG:4326"
     )
+    gdf_3006 = gdf_4326.to_crs("EPSG:3006")
+    return gdf_3006
 
-    # E) Reproject to EPSG:3006
+def download_overpass_roads(bbox_3006):
+    """
+    1) Transform bbox_3006 -> EPSG:4326 (lat/lon).
+    2) Query Overpass for roads (highways) in that bounding box.
+    3) Return a GeoDataFrame in EPSG:3006.
+    """
+    transformer = pyproj.Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True)
+    xmin, ymin, xmax, maxy = bbox_3006
+    min_lon, min_lat = transformer.transform(xmin, ymin)
+    max_lon, max_lat = transformer.transform(xmax, maxy)
+
+    query = f"""
+    [out:json];
+    way["highway"]({min_lat},{min_lon},{max_lat},{max_lon});
+    (._;>;);
+    out body;
+    """
+    print(f"Querying Overpass for roads in bbox={bbox_3006}")
+    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+
+    # Parse
+    nodes = {}
+    for elem in data.get("elements", []):
+        if elem["type"] == "node":
+            nid = elem["id"]
+            lat = elem["lat"]
+            lon = elem["lon"]
+            nodes[nid] = (lat, lon)
+
+    roads_ll = []
+    for elem in data.get("elements", []):
+        if elem["type"] == "way" and "nodes" in elem:
+            refs = elem["nodes"]
+            coords = []
+            for r in refs:
+                if r in nodes:
+                    coords.append(nodes[r])  # (lat, lon)
+            if len(coords) > 1:
+                roads_ll.append(coords)
+
+    # lat-lon -> lines in EPSG:4326
+    lines_4326 = []
+    for line_coords in roads_ll:
+        line_lonlat = [(lon, lat) for (lat, lon) in line_coords]
+        lines_4326.append(LineString(line_lonlat))
+
+    gdf_4326 = gpd.GeoDataFrame(
+        {"osm_id": range(len(lines_4326))},
+        geometry=lines_4326,
+        crs="EPSG:4326"
+    )
     gdf_3006 = gdf_4326.to_crs("EPSG:3006")
     return gdf_3006
 
 # ------------------------------------------------------------------------
-# 5. Main superset-based caching logic
+# 5) Superset-based caching logic for Buildings
 # ------------------------------------------------------------------------
 def get_buildings_for_bbox(bbox_3006):
     """
-    1) Load metadata
-    2) Check if there's a superset bounding box => filter from local file
-    3) If not, Overpass download => store to local GPKG => add to metadata
-    4) Return the resulting GeoDataFrame (EPSG:3006)
+    1) load metadata
+    2) look for superset => filter local
+    3) otherwise => Overpass => store => add to metadata
+    4) return GDF in EPSG:3006
     """
-    # A) Load metadata
     records = load_cache_metadata()
-
-    # B) Look for a superset record
-    sup_rec = find_superset_record(bbox_3006, records)
+    sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "buildings"])
     if sup_rec:
-        print("Found superset bounding box:", sup_rec["bbox"])
-        # load from gpkg
+        print("Found superset bounding box for buildings:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
-        # filter
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
-        print(f"Subset size: {len(subset_gdf)} features for bbox={bbox_3006}")
+        print(f"Subset size: {len(subset_gdf)} features for buildings in bbox={bbox_3006}")
         return subset_gdf
     else:
-        print("No superset in cache => calling Overpass.")
         # Overpass
         new_gdf = download_overpass_buildings(bbox_3006)
         print(f"Downloaded {len(new_gdf)} building footprints from Overpass.")
-
-        # store to GPKG
+        # store
         out_filename = f"buildings_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg"
         new_gdf.to_file(out_filename, layer="buildings", driver="GPKG")
-
-        # add record to metadata
-        new_record = {
+        # update metadata
+        records.append({
             "type": "buildings",
             "bbox": list(bbox_3006),
             "filepath": out_filename,
             "layer": "buildings"
-        }
-        records.append(new_record)
+        })
         save_cache_metadata(records)
-
         return new_gdf
+
+# ------------------------------------------------------------------------
+# 6) Superset-based caching logic for Roads
+# ------------------------------------------------------------------------
+def get_roads_for_bbox(bbox_3006):
+    """
+    1) load metadata
+    2) look for superset => filter local
+    3) otherwise => Overpass => store => add to metadata
+    4) return GDF in EPSG:3006
+    """
+    records = load_cache_metadata()
+    sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "roads"])
+    if sup_rec:
+        print("Found superset bounding box for roads:", sup_rec["bbox"])
+        gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
+        subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
+        print(f"Subset size: {len(subset_gdf)} features for roads in bbox={bbox_3006}")
+        return subset_gdf
+    else:
+        # Overpass
+        new_gdf = download_overpass_roads(bbox_3006)
+        print(f"Downloaded {len(new_gdf)} road features from Overpass.")
+        # store
+        out_filename = f"roads_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg"
+        new_gdf.to_file(out_filename, layer="roads", driver="GPKG")
+        # update metadata
+        records.append({
+            "type": "roads",
+            "bbox": list(bbox_3006),
+            "filepath": out_filename,
+            "layer": "roads"
+        })
+        save_cache_metadata(records)
+        return new_gdf
+
 
 # ------------------------------------------------------------------------
 # Example usage
 # ------------------------------------------------------------------------
-#if __name__ == "__main__":
-#    # For example, in SWEREF 99 TM (EPSG:3006)
-#    user_bbox_a = (267000, 6519000, 270000, 6521000)  # bigger
-#    user_bbox_b = (268000, 6519500, 269000, 6520000)  # smaller subset
+'''
+if __name__ == "__main__":
+    # bigger bounding box in EPSG:3006
+    bboxA = (267000, 6519000, 270000, 6521000)
+    # smaller bounding box, fully inside A
+    bboxB = (268000, 6519500, 269000, 6520000)
 
-#    # 1) First call with a bigger bounding box
-#    gdfA = get_buildings_for_bbox(user_bbox_a)
-#    print("Result A size:", len(gdfA))
+    print("=== Buildings: BBox A ===")
+    bldgA = get_buildings_for_bbox(bboxA)
+    print("Buildings A size:", len(bldgA))
 
-#    # 2) Second call with a smaller bounding box inside the first
-#    # => no Overpass call, we do superset filtering from the local data
-#    gdfB = get_buildings_for_bbox(user_bbox_b)
-#    print("Result B size:", len(gdfB))
+    print("=== Buildings: BBox B (subset) ===")
+    bldgB = get_buildings_for_bbox(bboxB)
+    print("Buildings B size:", len(bldgB))
+
+    print("=== Roads: BBox A ===")
+    roadsA = get_roads_for_bbox(bboxA)
+    print("Roads A size:", len(roadsA))
+
+    print("=== Roads: BBox B (subset) ===")
+    roadsB = get_roads_for_bbox(bboxB)
+    print("Roads B size:", len(roadsB))
+'''
