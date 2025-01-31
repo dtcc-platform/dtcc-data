@@ -104,19 +104,19 @@ def main():
     print("Result1:", result1)
 
     print("=== Download footprints from dtcc => triggers SSH auth if not already connected ===")
-    result1 = download_data("footprints", "dtcc")
+    result2 = download_data("footprints", "dtcc")
     print("Result2:", result2)
 
     print("\n=== Download roads from dtcc => already connected if previous step succeeded ===")
-    result2 = download_data("roads", "dtcc")
+    result3 = download_data("roads", "dtcc")
     print("Result3:", result3)
 
     print("\n=== Download LIDAR from OSM => no SSH needed ===")
-    result3 = download_data("lidar", "OSM")
+    result4 = download_data("lidar", "OSM")
     print("Result4:", result4)
 
     print("\n=== Download roads from OSM => no SSH needed ===")
-    result4 = download_data("roads", "OSM")
+    result5 = download_data("roads", "OSM")
     print("Result5:", result5)
 
 if __name__ == "__main__":
