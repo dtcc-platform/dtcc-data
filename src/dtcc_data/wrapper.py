@@ -2,6 +2,8 @@
 
 import paramiko
 import getpass
+from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
+from dtcc_data.geopkg import download_tiles
 
 # We'll allow "lidar" or "geopackage" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "geopackage"]
