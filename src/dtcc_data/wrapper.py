@@ -5,8 +5,8 @@ import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
 
-# We'll allow "lidar" or "geopackage" for data_type, and "dtcc" or "OSM" for provider.
-valid_types = ["lidar", "geopackage"]
+# We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
+valid_types = ["lidar", "roads", "footprints"]
 valid_providers = ["dtcc", "OSM"]
 
 # We'll keep a single global SSH client in memory
@@ -61,7 +61,7 @@ def download_data(data_type: str, provider: str):
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
     If provider='OSM', we just do a dummy download with no SSH.
 
-    :param data_type: 'lidar' or 'geopackage'
+    :param data_type: 'lidar' or 'roads' or 'footprints'
     :param provider: 'dtcc' or 'OSM'
     :return: dict with info about the (dummy) download
     """
@@ -103,17 +103,21 @@ def main():
     result1 = download_data("lidar", "dtcc")
     print("Result1:", result1)
 
-    print("\n=== Download Geopackage from dtcc => already connected if previous step succeeded ===")
-    result2 = download_data("geopackage", "dtcc")
+    print("=== Download footprints from dtcc => triggers SSH auth if not already connected ===")
+    result1 = download_data("footprints", "dtcc")
     print("Result2:", result2)
+
+    print("\n=== Download roads from dtcc => already connected if previous step succeeded ===")
+    result2 = download_data("roads", "dtcc")
+    print("Result3:", result3)
 
     print("\n=== Download LIDAR from OSM => no SSH needed ===")
     result3 = download_data("lidar", "OSM")
-    print("Result3:", result3)
-
-    print("\n=== Download Geopackage from OSM => no SSH needed ===")
-    result4 = download_data("geopackage", "OSM")
     print("Result4:", result4)
+
+    print("\n=== Download roads from OSM => no SSH needed ===")
+    result4 = download_data("roads", "OSM")
+    print("Result5:", result5)
 
 if __name__ == "__main__":
     main()
