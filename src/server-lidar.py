@@ -19,8 +19,10 @@ class LidarRequest(BaseModel):
 # ------------------------------------------------------------------------
 # 2. Load the atlas.json (with all integers)
 # ------------------------------------------------------------------------
-ATLAS_PATH = "atlas.json"
-LAZ_DIRECTORY = "."  # Where your actual .laz files reside
+#ATLAS_PATH = "atlas.json"
+#LAZ_DIRECTORY = "."  # Where your actual .laz files reside
+ATLAS_PATH = "/mnt/raid0/testingexclude/out/atlas.json"
+LAZ_DIRECTORY = "/mnt/raid0/testingexclude/out"  # Where your actual .laz files reside
 
 if not os.path.exists(ATLAS_PATH):
     raise FileNotFoundError(f"Atlas file not found: {ATLAS_PATH}")

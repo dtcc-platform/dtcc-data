@@ -13,7 +13,8 @@ app = FastAPI()
 
 # Adjust paths as needed
 ATLAS_FILE = "tiled_atlas.json"
-DATA_DIRECTORY = "./data_tiles"  # Where your .gpkg files actually reside
+ATLAS_FILE="/mnt/raid0/testing_by/tiles_atlas.json"
+DATA_DIRECTORY = "/mnt/raid0/testing_by/tiled_data/"  # Where your .gpkg files actually reside
 
 # 1) Pydantic model for the incoming POST payload
 class BBoxRequest(BaseModel):
