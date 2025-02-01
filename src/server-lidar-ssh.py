@@ -7,62 +7,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
-# ----- Added lines for SSH Auth -----
+# ----- Imports for SSH and Auth -----
 import paramiko
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-
-SSH_HOST = "data2.dtcc.chalmers.se"
-SSH_PORT = 22  # default SSH port
-
-# We'll do a small function to test SSH auth
-def ssh_authenticate(username: str, password: str) -> bool:
-    """Try SSH login to data2.dtcc.chalmers.se. Return True if success, else False."""
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh_client.connect(
-            hostname=SSH_HOST,
-            port=SSH_PORT,
-            username=username,
-            password=password,
-            timeout=5
-        )
-        ssh_client.close()
-        return True
-    except paramiko.AuthenticationException:
-        return False
-    except Exception:
-        return False
-
-async def ssh_auth_middleware(request: Request, call_next):
-    """
-    Middleware that checks X-Username and X-Password headers.
-    If SSH auth fails, return 401. Otherwise, proceed.
-    """
-    # Read headers
-    username = request.headers.get("X-Username")
-    password = request.headers.get("X-Password")
-
-    if not username or not password:
-        # No credentials
-        return Response(
-            content="Missing X-Username or X-Password header",
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
-
-    # Attempt SSH auth
-    if not ssh_authenticate(username, password):
-        return Response(
-            content="SSH authentication failed",
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
-
-    # If ok, continue
-    response = await call_next(request)
-    return response
-# ----- End of added lines for SSH Auth -----
+import secrets  # for token generation
+# ----- End of imports for SSH and Auth -----
 
 
 # ------------------------------------------------------------------------
@@ -81,6 +32,8 @@ class LidarRequest(BaseModel):
 # ------------------------------------------------------------------------
 ATLAS_PATH = "atlas.json"
 LAZ_DIRECTORY = "."  # Where your actual .laz files reside
+
+# Overwrite them with your specific paths
 ATLAS_PATH = "/mnt/raid0/testingexclude/out/atlas.json"
 LAZ_DIRECTORY = "/mnt/raid0/testingexclude/out"  # Where your actual .laz files reside
 
@@ -106,6 +59,7 @@ for x_str, y_dict in atlas_data_raw.items():
             "height": h
         }
 
+
 # ------------------------------------------------------------------------
 # 3. Utility: check if two bounding boxes intersect (integers)
 # ------------------------------------------------------------------------
@@ -125,15 +79,92 @@ def bboxes_intersect(axmin, aymin, axmax, aymax,
 
 
 # ------------------------------------------------------------------------
-# 4. Create the FastAPI app
+# 4. SSH-based Authentication and Middleware
+# ------------------------------------------------------------------------
+SSH_HOST = "data2.dtcc.chalmers.se"
+SSH_PORT = 22  # default SSH port
+
+def ssh_authenticate(username: str, password: str) -> bool:
+    """Try SSH login to data2.dtcc.chalmers.se. Return True if success, else False."""
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        ssh_client.connect(
+            hostname=SSH_HOST,
+            port=SSH_PORT,
+            username=username,
+            password=password,
+            timeout=5
+        )
+        ssh_client.close()
+        return True
+    except paramiko.AuthenticationException:
+        return False
+    except Exception:
+        return False
+
+# We'll keep valid tokens in this in-memory set
+VALID_TOKENS = set()
+
+async def ssh_auth_middleware(request: Request, call_next):
+    """
+    Middleware that checks for an Authorization: Bearer <token> header.
+    If the token is missing or invalid, returns 401.
+    Otherwise, proceeds with request.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return Response(
+            content="Missing or invalid Authorization header",
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    token = auth_header[len("Bearer "):].strip()
+
+    if token not in VALID_TOKENS:
+        return Response(
+            content="Invalid or expired token",
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # If token is valid, continue
+    response = await call_next(request)
+    return response
+
+
+# ------------------------------------------------------------------------
+# 5. Create the FastAPI app
 # ------------------------------------------------------------------------
 app = FastAPI()
-
-# ----- Added line to mount the SSH auth middleware -----
 app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
-# -------------------------------------------------------
 
 
+# ------------------------------------------------------------------------
+# 6. New endpoint: /auth/token
+# ------------------------------------------------------------------------
+class AuthCredentials(BaseModel):
+    username: str
+    password: str
+
+@app.post("/auth/token")
+def create_token(creds: AuthCredentials):
+    """
+    Exchange username/password for an auth token, if SSH login succeeds.
+    """
+    if ssh_authenticate(creds.username, creds.password):
+        token = secrets.token_hex(16)  # Generate a random token
+        VALID_TOKENS.add(token)
+        return {"token": token}
+    else:
+        raise HTTPException(
+            status_code=401,
+            detail="SSH authentication failed"
+        )
+
+
+# ------------------------------------------------------------------------
+# 7. The /get_lidar POST route
+# ------------------------------------------------------------------------
 @app.post("/get_lidar")
 def get_lidar_tiles(req: LidarRequest):
     """
@@ -150,14 +181,13 @@ def get_lidar_tiles(req: LidarRequest):
     2) Find all tiles in atlas.json that intersect that expanded box.
     3) Return a JSON with each tile's filename and bounding box in EPSG:3006.
     """
-
     # 1) Expand bounding box with buffer (all int)
     bxmin = req.xmin - req.buffer
     bymin = req.ymin - req.buffer
     bxmax = req.xmax + req.buffer
     bymax = req.ymax + req.buffer
 
-    # 2) Find intersecting tiles, returning each tile's bounding box
+    # 2) Find intersecting tiles
     tiles_info = []
     for x_str, y_dict in atlas_data.items():
         x_int = int(x_str)
@@ -194,8 +224,7 @@ def get_lidar_tiles(req: LidarRequest):
         "tiles": tiles_info
     }
 
-    # If you prefer returning a ZIP file of .laz binaries:
-    #
+    # (Commented out example of returning a ZIP of the .laz files)
     # mem_zip = io.BytesIO()
     # with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
     #     for tile in tiles_info:
@@ -212,8 +241,9 @@ def get_lidar_tiles(req: LidarRequest):
     #     headers={"Content-Disposition": "attachment; filename=lidar_tiles.zip"}
     # )
 
+
 # ------------------------------------------------------------------------
-# 5. New endpoint: /get/lidar/{filename}
+# 8. The /get/lidar/{filename} GET route
 # ------------------------------------------------------------------------
 @app.get("/get/lidar/{filename}")
 def get_lidar_file(filename: str):
