@@ -112,6 +112,10 @@ async def ssh_auth_middleware(request: Request, call_next):
     If the token is missing or invalid, returns 401.
     Otherwise, proceeds with request.
     """
+
+    if request.url.path == "/auth/token":
+        return await call_next(request)
+        
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return Response(
