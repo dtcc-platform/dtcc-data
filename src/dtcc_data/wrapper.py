@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
 
+#!/usr/bin/env python3
+import requests
 import paramiko
 import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
@@ -15,6 +16,30 @@ SSH_CREDS = {
     "username": None,
     "password": None
 }
+
+def get_authenticated_session(base_url: str, username: str, password: str) -> requests.Session:
+    """
+    1. POST to /auth/token to obtain a bearer token.
+    2. Create a requests.Session that automatically sends the token for future requests.
+    """
+    # 1) Obtain the token
+    token_url = f"{base_url.rstrip('/')}/auth/token"
+    payload = {"username": username, "password": password}
+
+    response = requests.post(token_url, json=payload)
+    if response.status_code != 200:
+        raise RuntimeError(f"Token request failed: {response.status_code}, {response.text}")
+
+    data = response.json()
+    if "token" not in data:
+        raise RuntimeError(f"No token found in response: {data}")
+
+    token = data["token"]
+
+    # 2) Create and return a Session with the token in headers
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Bearer {token}"})
+    return session
 
 class SSHAuthenticationError(Exception):
     """Raised if SSH authentication fails."""
@@ -119,5 +144,34 @@ def main():
     result5 = download_data("roads", "OSM")
     print("Result5:", result5)
 
+ # New authenticated session, only needed for data_provider="dtcc"
+ # Replace with your actual server URL
+    BASE_URL = "http://localhost:8000"
+    USERNAME = "myUser"
+    PASSWORD = "myPass"
+
+    # Get an authenticated session
+    session = get_authenticated_session(BASE_URL, USERNAME, PASSWORD)
+
+    # Then make calls with that session:
+    lidar_endpoint = f"{BASE_URL}/get_lidar"
+    payload = {
+        "xmin": 267000,
+        "ymin": 6519000,
+        "xmax": 268000,
+        "ymax": 6521000,
+        "buffer": 100
+    }
+
+    # Now the session automatically includes the Authorization header
+    resp = session.post(lidar_endpoint, json=payload)
+    if resp.ok:
+        print("Success:", resp.json())
+    else:
+        print("Error:", resp.status_code, resp.text)
+
+# ---------------------------------------------------------------------
+# Example usage:
+# ---------------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+   
