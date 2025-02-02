@@ -5,6 +5,8 @@ import paramiko
 import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
+from dtcc_data.lidar import download_lidar
+from dtcc_core import io
 
 # We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "roads", "footprints"]
@@ -20,7 +22,7 @@ SSH_CREDS = {
 def get_authenticated_session(base_url: str, username: str, password: str) -> requests.Session:
     """
     1. POST to /auth/token to obtain a bearer token.
-    2. Create a requests.Session that automatically sends the token for future requests.
+    2. Create a requests.Session that automatically sends the token for future requests during runtime.
     """
     # 1) Obtain the token
     token_url = f"{base_url.rstrip('/')}/auth/token"
@@ -28,7 +30,8 @@ def get_authenticated_session(base_url: str, username: str, password: str) -> re
 
     response = requests.post(token_url, json=payload)
     if response.status_code != 200:
-        raise RuntimeError(f"Token request failed: {response.status_code}, {response.text}")
+        print('Token request failed.', 'Status code: ', response.status_code)
+        return
 
     data = response.json()
     if "token" not in data:
@@ -53,34 +56,33 @@ def _ssh_connect_if_needed():
     """
     global SSH_CLIENT, SSH_CREDS
 
-    # If already connected, do nothing
-    if SSH_CLIENT is not None:
-        return
 
     # If no credentials, prompt user
     if not SSH_CREDS["username"] or not SSH_CREDS["password"]:
         print("SSH Authentication required for dtcc provider.")
-        SSH_CREDS["username"] = input("Enter SSH username: ")
-        SSH_CREDS["password"] = getpass.getpass("Enter SSH password: ")
+        USERNAME = input("Enter SSH username: ")
+        PASSWORD = getpass.getpass("Enter SSH password: ")
+    session = get_authenticated_session('http://compute.dtcc.chalmers.se:8000', USERNAME, PASSWORD)
+    return session
 
-    # Create a new SSH client
-    SSH_CLIENT = paramiko.SSHClient()
-    SSH_CLIENT.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # # Create a new SSH client
+    # SSH_CLIENT = paramiko.SSHClient()
+    # SSH_CLIENT.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    try:
-        SSH_CLIENT.connect(
-            hostname="data.dtcc.chalmers.se",
-            username=SSH_CREDS["username"],
-            password=SSH_CREDS["password"]
-        )
-    except paramiko.AuthenticationException as e:
-        # If auth fails, raise an error and reset SSH_CLIENT
-        SSH_CLIENT = None
-        raise SSHAuthenticationError(f"SSH authentication failed: {e}")
+    # try:
+    #     SSH_CLIENT.connect(
+    #         hostname="data.dtcc.chalmers.se",
+    #         username=SSH_CREDS["username"],
+    #         password=SSH_CREDS["password"]
+    #     )
+    # except paramiko.AuthenticationException as e:
+    #     # If auth fails, raise an error and reset SSH_CLIENT
+    #     SSH_CLIENT = None
+    #     raise SSHAuthenticationError(f"SSH authentication failed: {e}")
 
-    print("SSH authenticated with data.dtcc.chalmers.se (no SFTP).")
+    # print("SSH authenticated with data.dtcc.chalmers.se (no SFTP).")
 
-def download_data(data_type: str, provider: str):
+def download_data(data_type: str, provider: str, user_bbox: tuple, url = 'http://compute.dtcc.chalmers.se:8000'):
     """
     A wrapper for downloading data, but with a dummy step for actual file transfer.
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
@@ -99,24 +101,48 @@ def download_data(data_type: str, provider: str):
 
     if provider == "dtcc":
         # We need an SSH connection, purely for authentication
-        _ssh_connect_if_needed()
-
+        session = _ssh_connect_if_needed()
+        if not session:
+            return 
         # If we reach here, SSH authentication succeeded
-        print(f"Simulating download of {data_type} from dtcc via SSH (no actual file).")
-        return {
-            "data_type": data_type,
-            "provider": provider,
-            "status": "Dummy download from dtcc (SSH auth succeeded)."
-        }
+        if data_type == 'lidar':
+            print('Starting the Lidar files download from dtcc source')
+            files = download_lidar(user_bbox, session, base_url=url)
+            print(files)
+            pc = io.load_pointcloud(files)
+            return pc
+        elif data_type == 'footprints':
+            print("Starting the footprints download from dtcc source")
+            download_tiles(user_bbox, session, server_url=f"{url}/tiles")
+        else:
+            print("Incorrect data type.")
+        return
+        # return {
+        #     "data_type": data_type,
+        #     "provider": provider,
+        #     "status": "Dummy download from dtcc (SSH auth succeeded)."
+        # }
+        
 
-    else:  # provider == "OSM"
-        # No SSH required
-        print(f"Simulating download of {data_type} from OSM (no authentication).")
-        return {
-            "data_type": data_type,
-            "provider": provider,
-            "status": "Dummy download from OSM (no SSH)."
-        }
+    else:  
+        if data_type == 'footprints':
+            print("Starting footprints files download from OSM source")
+            gdf, filename = get_buildings_for_bbox(user_bbox)
+            footprints = io.load_footprints(filename)
+            return footprints
+        elif data_type == 'roads':
+            print('Start the roads files download from OSM source')
+            gdf, filename = get_roads_for_bbox(user_bbox)
+            roads = io.load_roadnetwork(filename)
+            return roads
+        else:
+            print('Please enter a valid data type')
+        return
+        # return {
+        #     "data_type": data_type,
+        #     "provider": provider,
+        #     "status": "Dummy download from OSM (no SSH)."
+        # }
 
 def main():
     """
@@ -173,5 +199,5 @@ def main():
 # ---------------------------------------------------------------------
 # Example usage:
 # ---------------------------------------------------------------------
-if __name__ == "__main__":
+# if __name__ == "__main__":
    

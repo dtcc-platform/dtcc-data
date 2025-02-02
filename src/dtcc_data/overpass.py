@@ -196,8 +196,9 @@ def get_buildings_for_bbox(bbox_3006):
         print("Found superset bounding box for buildings:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
+        saved_filename = sup_rec['filepath']
         print(f"Subset size: {len(subset_gdf)} features for buildings in bbox={bbox_3006}")
-        return subset_gdf
+        return subset_gdf, saved_filename
     else:
         # Overpass
         new_gdf = download_overpass_buildings(bbox_3006)
@@ -213,7 +214,7 @@ def get_buildings_for_bbox(bbox_3006):
             "layer": "buildings"
         })
         save_cache_metadata(records)
-        return new_gdf
+        return new_gdf, out_filename
 
 # ------------------------------------------------------------------------
 # 6) Superset-based caching logic for Roads
@@ -230,9 +231,10 @@ def get_roads_for_bbox(bbox_3006):
     if sup_rec:
         print("Found superset bounding box for roads:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
+        saved_filename = sup_rec['filepath']
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
         print(f"Subset size: {len(subset_gdf)} features for roads in bbox={bbox_3006}")
-        return subset_gdf
+        return subset_gdf, saved_filename
     else:
         # Overpass
         new_gdf = download_overpass_roads(bbox_3006)
@@ -248,7 +250,7 @@ def get_roads_for_bbox(bbox_3006):
             "layer": "roads"
         })
         save_cache_metadata(records)
-        return new_gdf
+        return new_gdf, out_filename
 
 
 # ------------------------------------------------------------------------

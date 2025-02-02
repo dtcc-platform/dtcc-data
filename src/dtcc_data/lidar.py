@@ -12,7 +12,7 @@ import aiohttp
 # Reusable Helper Functions
 # -----------------------------------------------------------------------
 
-def post_lidar_request(url, xmin, ymin, xmax, ymax, buffer_value=0):
+def post_lidar_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
     """
     Sends a POST request to the FastAPI endpoint with the given bounding box & buffer.
     Returns the parsed JSON response.
@@ -26,7 +26,8 @@ def post_lidar_request(url, xmin, ymin, xmax, ymax, buffer_value=0):
         "buffer": buffer_value
     }
     print(f"[POST] to {url} with payload={payload}")
-    resp = requests.post(url, json=payload, timeout=30)
+    resp = session.post(url, json=payload, timeout=30)
+    print(resp)
     if resp.status_code != 200:
         raise RuntimeError(
             f"Request failed with status {resp.status_code}:\n{resp.text}"
@@ -159,19 +160,22 @@ async def download_laz_file(session, base_url, filename, output_dir):
         else:
             print(f"Failed to download {filename}, status code={resp.status}")
 
-async def download_all_lidar_files(base_url, filenames, output_dir="downloaded_laz"):
+async def download_all_lidar_files(base_url, filenames, token, output_dir="downloaded_laz"):
     """
     Given a list of filenames, downloads them all asynchronously from
     base_url/get/lidar/<filename> using aiohttp, skipping any local cache hits.
     """
-    async with aiohttp.ClientSession() as session:
+    
+    headers = {"Authorization": token}
+    
+    async with aiohttp.ClientSession(headers=headers) as session:
         tasks = []
         for fname in filenames:
             tasks.append(download_laz_file(session, base_url, fname, output_dir))
         # Run all downloads concurrently
         await asyncio.gather(*tasks)
 
-def run_download_files(base_url, filenames, output_dir="downloaded_laz"):
+def run_download_files(base_url, filenames, token, output_dir="downloaded_laz"):
     """
     Entry point to run the async download with asyncio, skipping already cached files.
     """
@@ -179,14 +183,14 @@ def run_download_files(base_url, filenames, output_dir="downloaded_laz"):
         print("No files to download.")
         return
     print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
-    asyncio.run(download_all_lidar_files(base_url, filenames, output_dir))
+    asyncio.run(download_all_lidar_files(base_url, filenames, token, output_dir))
     print("All downloads finished.")
 
 
 # ------------------------------------------------------------------------
 # The single function that does everything for the user
 # ------------------------------------------------------------------------
-def download_lidar(user_bbox, buffer_val=0, base_url="http://127.0.0.1:8000",
+def download_lidar(user_bbox, session, buffer_val=0, base_url="http://127.0.0.1:8000",
                    output_map="client_map.html", output_dir="downloaded_laz"):
     """
     1) POST the bounding box + buffer to the server -> get intersecting tiles
@@ -200,6 +204,7 @@ def download_lidar(user_bbox, buffer_val=0, base_url="http://127.0.0.1:8000",
     try:
         response_data = post_lidar_request(
             endpoint_post,
+            session,
             xmin=user_bbox[0],
             ymin=user_bbox[1],
             xmax=user_bbox[2],
@@ -218,7 +223,8 @@ def download_lidar(user_bbox, buffer_val=0, base_url="http://127.0.0.1:8000",
 
     # D) Download files in parallel (with local cache)
     filenames_to_download = [tile["filename"] for tile in returned_tiles]
-    run_download_files(base_url, filenames_to_download, output_dir=output_dir)
+    run_download_files(base_url, filenames_to_download, session.headers.get("Authorization"), output_dir=output_dir)
+    return [os.path.join(output_dir, filename) for filename in filenames_to_download]
 
 
 # ------------------------------------------------------------------------

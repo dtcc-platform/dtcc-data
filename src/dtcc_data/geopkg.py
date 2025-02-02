@@ -58,7 +58,7 @@ def find_superset_in_cache(bbox, cache_data):
             return rec
     return None
 
-def download_tiles(bbox, server_url=DEFAULT_SERVER_URL):
+def download_tiles(bbox, session, server_url=DEFAULT_SERVER_URL):
     """
     1) Check if any cached bounding box is a superset of 'bbox'. If so, skip request.
     2) Otherwise, POST the bounding box to 'server_url' to get a ZIP file.
@@ -94,7 +94,7 @@ def download_tiles(bbox, server_url=DEFAULT_SERVER_URL):
     zip_filename = f"tiles_{minx}_{miny}_{maxx}_{maxy}.zip"
 
     try:
-        resp = requests.post(server_url, json=payload, stream=True, timeout=60)
+        resp = session.post(server_url, json=payload, stream=True, timeout=60)
     except requests.RequestException as e:
         print(f"Error connecting to server: {e}")
         return
