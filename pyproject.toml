@@ -25,7 +25,8 @@ dependencies = [
   "folium==0.19.2",
   "laspy==2.5.4",
   "pyproj==3.7.0",
-  "requests==2.32.3"
+  "requests==2.32.3",
+  "paramiko"
 ]
 
 [project.optional-dependencies]
