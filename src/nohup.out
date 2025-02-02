@@ -1,0 +1,43 @@
+INFO:     Started server process [2827050]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     129.16.14.10:51532 - "POST /auth/token HTTP/1.1" 401 Unauthorized
+INFO:     129.16.14.10:38742 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:38744 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:36726 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:36742 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:43040 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:43046 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:48032 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:48048 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:43962 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:43970 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:58260 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:58262 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37592 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37606 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37622 - "GET /get/lidar/19B002_639_32_7500.laz HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37650 - "GET /get/lidar/20B008_640_32_0000.laz HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37634 - "GET /get/lidar/20B008_640_31_0075.laz HTTP/1.1" 200 OK
+INFO:     129.16.14.10:37660 - "GET /get/lidar/19B002_639_31_7575.laz HTTP/1.1" 200 OK
+INFO:     129.16.14.10:35772 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:35786 - "POST /get_lidar HTTP/1.1" 200 OK
+INFO:     129.16.14.10:55424 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     129.16.14.10:55436 - "POST /get_lidar HTTP/1.1" 200 OK
+Killed
+INFO:     Started server process [2832589]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     129.16.14.10:36458 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:47856 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:33750 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:56072 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:53050 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:40456 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     129.16.14.10:36972 - "POST /auth/token HTTP/1.1" 404 Not Found
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2832589]

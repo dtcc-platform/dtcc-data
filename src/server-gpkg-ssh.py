@@ -4,6 +4,7 @@ import os
 import json
 import io
 import zipfile
+import secrets
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,28 +33,38 @@ def ssh_authenticate(username: str, password: str) -> bool:
     except Exception:
         return False
 
+# We'll keep valid tokens in this in-memory set
+VALID_TOKENS = set()
+
 async def ssh_auth_middleware(request: Request, call_next):
     """
-    Middleware that checks X-Username and X-Password headers for SSH login.
-    If authentication fails, return 401. Otherwise proceed.
+    Middleware that checks for an Authorization: Bearer <token> header.
+    If the token is missing or invalid, returns 401.
+    Otherwise, proceeds with request.
     """
-    username = request.headers.get("X-Username")
-    password = request.headers.get("X-Password")
 
-    if not username or not password:
+    if request.url.path == "/auth/token":
+        return await call_next(request)
+        
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
         return Response(
-            content="Missing X-Username or X-Password header",
+            content="Missing or invalid Authorization header",
             status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-    if not ssh_authenticate(username, password):
+    token = auth_header[len("Bearer "):].strip()
+
+    if token not in VALID_TOKENS:
         return Response(
-            content="SSH authentication failed",
+            content="Invalid or expired token",
             status_code=status.HTTP_401_UNAUTHORIZED
         )
 
+    # If token is valid, continue
     response = await call_next(request)
     return response
+
 # --- End of Added Lines ---
 
 app = FastAPI()
@@ -64,7 +75,8 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
 # Adjust paths as needed
 ATLAS_FILE = "tiled_atlas.json"
 DATA_DIRECTORY = "./data_tiles"  # Where your .gpkg files actually reside
-
+ATLAS_FILE="/mnt/raid0/testing_by/tiles_atlas.json"
+DATA_DIRECTORY = "/mnt/raid0/testing_by/tiled_data/"  # Where your .gpkg fi
 # 1) Pydantic model for the incoming POST payload
 class BBoxRequest(BaseModel):
     minx: float
@@ -82,6 +94,28 @@ def bboxes_intersect(axmin, aymin, axmax, aymax,
         aymax < bymin or  # A is below B
         aymin > bymax     # A is above B
     )
+# ------------------------------------------------------------------------
+# 6. New endpoint: /auth/token
+# ------------------------------------------------------------------------
+class AuthCredentials(BaseModel):
+    username: str
+    password: str
+
+@app.post("/auth/token")
+def create_token(creds: AuthCredentials):
+    """
+    Exchange username/password for an auth token, if SSH login succeeds.
+    """
+    if ssh_authenticate(creds.username, creds.password):
+        token = secrets.token_hex(16)  # Generate a random token
+        VALID_TOKENS.add(token)
+        return {"token": token}
+    else:
+        raise HTTPException(
+            status_code=401,
+            detail="SSH authentication failed"
+        )
+
 
 @app.post("/tiles")
 def get_tiles(req: BBoxRequest):
