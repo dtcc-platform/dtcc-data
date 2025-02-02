@@ -26,7 +26,8 @@ dependencies = [
   "laspy==2.5.4",
   "pyproj==3.7.0",
   "requests==2.32.3",
-  "paramiko"
+  "paramiko",
+  "geopandas"
 ]
 
 [project.optional-dependencies]
