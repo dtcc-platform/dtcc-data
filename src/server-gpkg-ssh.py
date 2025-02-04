@@ -7,7 +7,7 @@ import zipfile
 import secrets
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 # --- Added Imports & SSH Auth Variables ---
@@ -154,27 +154,49 @@ def get_tiles(req: BBoxRequest):
         if bboxes_intersect(tile_minx, tile_miny, tile_maxx, tile_maxy,
                             user_minx, user_miny, user_maxx, user_maxy):
             matched_files.append(filename)
+    
 
     if not matched_files:
         raise HTTPException(status_code=404, detail="No tiles intersect the requested bounding box.")
-
+    return {
+        "message": "Success",
+        "num_tiles": len(matched_files),
+        "tiles": matched_files
+    }
     # C) Create an in-memory zip with all needed .gpkg files
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for fname in matched_files:
-            tile_path = os.path.join(DATA_DIRECTORY, fname)
-            if not os.path.exists(tile_path):
-                # If the file doesn't exist on disk, skip or raise an error
-                continue
-            # Add file to zip under its original name
-            zf.write(tile_path, arcname=fname)
+    # mem_zip = io.BytesIO()
+    # with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+    #     for fname in matched_files:
+    #         tile_path = os.path.join(DATA_DIRECTORY, fname)
+    #         if not os.path.exists(tile_path):
+    #             # If the file doesn't exist on disk, skip or raise an error
+    #             continue
+    #         # Add file to zip under its original name
+    #         zf.write(tile_path, arcname=fname)
 
-    mem_zip.seek(0)
+    # mem_zip.seek(0)
 
-    # D) Return as a streaming response
-    # The client receives a zip file named e.g. "tiles.zip"
-    return StreamingResponse(
-        mem_zip,
-        media_type="application/x-zip-compressed",
-        headers={"Content-Disposition": "attachment; filename=tiles.zip"}
-    )
+    # # D) Return as a streaming response
+    # # The client receives a zip file named e.g. "tiles.zip"
+    # return StreamingResponse(
+    #     mem_zip,
+    #     media_type="application/x-zip-compressed",
+    #     headers={"Content-Disposition": "attachment; filename=tiles.zip"}
+    # )
+
+@app.get("/get/gpkg/{filename}")
+def get_gpkg_file(filename: str):
+    """
+    Returns the .laz file as a binary stream.
+    Example: GET /get/lidar/foo.laz
+    """
+    laz_path = os.path.join(DATA_DIRECTORY, filename)
+
+    if not os.path.exists(laz_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Lidar file not found: {filename}"
+        )
+
+    # Return the file
+    return FileResponse(path=laz_path, media_type="application/octet-stream", filename=filename)
