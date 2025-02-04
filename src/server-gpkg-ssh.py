@@ -74,9 +74,8 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
 
 # Adjust paths as needed
 ATLAS_FILE = "tiled_atlas.json"
-DATA_DIRECTORY = "./data_tiles"  # Where your .gpkg files actually reside
 ATLAS_FILE="/mnt/raid0/testing_by/tiles_atlas.json"
-DATA_DIRECTORY = "/mnt/raid0/testing_by/tiled_data/"  # Where your .gpkg fi
+DATA_DIRECTORY = "/mnt/raid0/testing_by/tiled_data"  # Where your .gpkg fi
 # 1) Pydantic model for the incoming POST payload
 class BBoxRequest(BaseModel):
     minx: float
@@ -190,13 +189,13 @@ def get_gpkg_file(filename: str):
     Returns the .laz file as a binary stream.
     Example: GET /get/lidar/foo.laz
     """
-    laz_path = os.path.join(DATA_DIRECTORY, filename)
-
-    if not os.path.exists(laz_path):
+    gpkg_path = os.path.join(DATA_DIRECTORY, filename)
+    print(gpkg_path)
+    if not os.path.exists(gpkg_path):
         raise HTTPException(
             status_code=404,
-            detail=f"Lidar file not found: {filename}"
+            detail=f"GPKG file not found: {filename}"
         )
 
     # Return the file
-    return FileResponse(path=laz_path, media_type="application/octet-stream", filename=filename)
+    return FileResponse(path=gpkg_path, media_type="application/octet-stream", filename=filename)

@@ -67,11 +67,10 @@ def post_gpkg_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
     Example: url = "http://127.0.0.1:8000/tiles"
     """
     payload = {
-        "xmin": xmin,
-        "ymin": ymin,
-        "xmax": xmax,
-        "ymax": ymax,
-        "buffer": buffer_value
+        "minx": xmin,
+        "miny": ymin,
+        "maxx": xmax,
+        "maxy": ymax,
     }
     print(f"[POST] to {url} with payload={payload}")
     resp = session.post(url, json=payload, timeout=30)
@@ -144,7 +143,7 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     5) If later bounding boxes are subsets of this one, we skip new requests.
     """
     # Convert bbox to a tuple of floats
-    bbox = tuple(map(float, bbox))  # (minx, miny, maxx, maxy)
+    # bbox = tuple(map(float, bbox))  # (minx, miny, maxx, maxy)
 
     # Load local cache
     # cache_data = load_cache()
@@ -215,7 +214,8 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     returned_tiles = response_data["tiles"]
     output_dir = 'downloaded-gpkg'
     # D) Download files in parallel (with local cache)
-    filenames_to_download = [tile["filename"] for tile in returned_tiles]
+    # filenames_to_download = [tile["filename"] for tile in returned_tiles]
+    print(returned_tiles)
     run_download_files(server_url, returned_tiles, session.headers.get("Authorization"), output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
