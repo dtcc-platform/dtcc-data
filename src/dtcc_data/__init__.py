@@ -1,6 +1,6 @@
 # Import Python code
-from dtcc_data.multiplication import mul
-from dtcc_data.division import div
+# from multiplication import mul
+# from division import div
 #from dtcc_data.lidar import download_lidar
 #from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 #from dtcc_data.geopkg import download_tiles

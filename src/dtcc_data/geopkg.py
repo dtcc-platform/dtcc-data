@@ -66,7 +66,6 @@ def download_tiles(bbox, session, server_url=DEFAULT_SERVER_URL):
     4) Add a new cache record with the bounding box and zip filename.
     5) If later bounding boxes are subsets of this one, we skip new requests.
     """
-
     # Convert bbox to a tuple of floats
     bbox = tuple(map(float, bbox))  # (minx, miny, maxx, maxy)
 

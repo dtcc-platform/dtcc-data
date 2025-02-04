@@ -7,6 +7,7 @@ from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
 from dtcc_data.lidar import download_lidar
 from dtcc_core import io
+from dtcc_core.model import Bounds
 
 # We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "roads", "footprints"]
@@ -18,6 +19,7 @@ SSH_CREDS = {
     "username": None,
     "password": None
 }
+sessions = []
 
 def get_authenticated_session(base_url: str, username: str, password: str) -> requests.Session:
     """
@@ -55,15 +57,16 @@ def _ssh_connect_if_needed():
     On success, we store the SSH client in memory for future calls.
     """
     global SSH_CLIENT, SSH_CREDS
-
-
+    global sessions
     # If no credentials, prompt user
-    if not SSH_CREDS["username"] or not SSH_CREDS["password"]:
+    if not sessions:
         print("SSH Authentication required for dtcc provider.")
         USERNAME = input("Enter SSH username: ")
         PASSWORD = getpass.getpass("Enter SSH password: ")
-    session = get_authenticated_session('http://compute.dtcc.chalmers.se:8000', USERNAME, PASSWORD)
-    return session
+        lidar_session = get_authenticated_session('http://compute.dtcc.chalmers.se:8000', USERNAME, PASSWORD)
+        gpkg_session = get_authenticated_session('http://compute.dtcc.chalmers.se:8001', USERNAME, PASSWORD)
+        return lidar_session, gpkg_session
+    return sessions
 
     # # Create a new SSH client
     # SSH_CLIENT = paramiko.SSHClient()
@@ -82,7 +85,7 @@ def _ssh_connect_if_needed():
 
     # print("SSH authenticated with data.dtcc.chalmers.se (no SFTP).")
 
-def download_data(data_type: str, provider: str, user_bbox: tuple, url = 'http://compute.dtcc.chalmers.se:8000'):
+def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
     """
     A wrapper for downloading data, but with a dummy step for actual file transfer.
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
@@ -92,7 +95,10 @@ def download_data(data_type: str, provider: str, user_bbox: tuple, url = 'http:/
     :param provider: 'dtcc' or 'OSM'
     :return: dict with info about the (dummy) download
     """
-
+    user_bbox = user_bbox.tuple
+    if not epsg == '3006':
+        print('Please enter the coordinates in EPSG:3006')
+        return
     # Validate
     if data_type not in valid_types:
         raise ValueError(f"Invalid data_type '{data_type}'. Must be one of {valid_types}.")
@@ -100,20 +106,22 @@ def download_data(data_type: str, provider: str, user_bbox: tuple, url = 'http:/
         raise ValueError(f"Invalid provider '{provider}'. Must be one of {valid_providers}.")
 
     if provider == "dtcc":
+        
         # We need an SSH connection, purely for authentication
-        session = _ssh_connect_if_needed()
-        if not session:
+        global sessions
+        sessions = _ssh_connect_if_needed()
+        if not sessions:
             return 
         # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
             print('Starting the Lidar files download from dtcc source')
-            files = download_lidar(user_bbox, session, base_url=url)
+            files = download_lidar(user_bbox, sessions[0], base_url=f'{url}:8000')
             print(files)
             pc = io.load_pointcloud(files)
             return pc
         elif data_type == 'footprints':
             print("Starting the footprints download from dtcc source")
-            download_tiles(user_bbox, session, server_url=f"{url}/tiles")
+            download_tiles(user_bbox, sessions[1], server_url=f"{url}:8001/tiles")
         else:
             print("Incorrect data type.")
         return
