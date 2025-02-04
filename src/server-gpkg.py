@@ -6,7 +6,7 @@ import io
 import zipfile
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -71,10 +71,15 @@ def get_tiles(req: BBoxRequest):
         if bboxes_intersect(tile_minx, tile_miny, tile_maxx, tile_maxy,
                             user_minx, user_miny, user_maxx, user_maxy):
             matched_files.append(filename)
+    
 
     if not matched_files:
         raise HTTPException(status_code=404, detail="No tiles intersect the requested bounding box.")
-
+    return {
+        "message": "Success",
+        "num_tiles": len(matched_files),
+        "tiles": matched_files
+    }
     # C) Create an in-memory zip with all needed .gpkg files
     mem_zip = io.BytesIO()
     with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -95,3 +100,20 @@ def get_tiles(req: BBoxRequest):
         media_type="application/x-zip-compressed",
         headers={"Content-Disposition": "attachment; filename=tiles.zip"}
     )
+
+@app.get("/get/gpkg/{filename}")
+def get_gpkg_file(filename: str):
+    """
+    Returns the .laz file as a binary stream.
+    Example: GET /get/lidar/foo.laz
+    """
+    laz_path = os.path.join(DATA_DIRECTORY, filename)
+
+    if not os.path.exists(laz_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Lidar file not found: {filename}"
+        )
+
+    # Return the file
+    return FileResponse(path=laz_path, media_type="application/octet-stream", filename=filename)

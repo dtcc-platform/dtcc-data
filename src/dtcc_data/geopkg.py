@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import asyncio
 import os
 import json
+import aiohttp
 import requests
 
 # Where we store local cache metadata
@@ -58,7 +60,82 @@ def find_superset_in_cache(bbox, cache_data):
             return rec
     return None
 
-def download_tiles(bbox, session, server_url=DEFAULT_SERVER_URL):
+def post_gpkg_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
+    """
+    Sends a POST request to the FastAPI endpoint with the given bounding box & buffer.
+    Returns the parsed JSON response.
+    Example: url = "http://127.0.0.1:8000/tiles"
+    """
+    payload = {
+        "xmin": xmin,
+        "ymin": ymin,
+        "xmax": xmax,
+        "ymax": ymax,
+        "buffer": buffer_value
+    }
+    print(f"[POST] to {url} with payload={payload}")
+    resp = session.post(url, json=payload, timeout=30)
+    print(resp)
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Request failed with status {resp.status_code}:\n{resp.text}"
+        )
+    data = resp.json()
+    return data
+
+async def download_gpkg_file(session, base_url, filename, output_dir):
+    """
+    Download a single .laz file asynchronously with aiohttp if not already cached.
+    The endpoint is assumed to be: f"{base_url}/get/lidar/{filename}"
+    We'll store the downloaded file in output_dir/filename.
+    """
+    url = f"{base_url}/get/gpkg/{filename}"
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, filename)
+
+    # 1) Check local cache
+    if os.path.exists(out_path):
+        print(f"File {filename} already in cache, skipping download.")
+        return  # skip
+
+    # 2) If not cached, download
+    print(f"Downloading {filename} from {url}")
+    async with session.get(url) as resp:
+        if resp.status == 200:
+            content = await resp.read()
+            with open(out_path, "wb") as f:
+                f.write(content)
+            print(f"Saved {filename} to {out_path}")
+        else:
+            print(f"Failed to download {filename}, status code={resp.status}")
+
+async def download_all_gpkg_files(base_url, filenames, token, output_dir="downloaded_gpkg"):
+    """
+    Given a list of filenames, downloads them all asynchronously from
+    base_url/get/lidar/<filename> using aiohttp, skipping any local cache hits.
+    """
+    
+    headers = {"Authorization": token}
+    
+    async with aiohttp.ClientSession(headers=headers) as session:
+        tasks = []
+        for fname in filenames:
+            tasks.append(download_gpkg_file(session, base_url, fname, output_dir))
+        # Run all downloads concurrently
+        await asyncio.gather(*tasks)
+
+def run_download_files(base_url, filenames, token, output_dir="downloaded_gpkg"):
+    """
+    Entry point to run the async download with asyncio, skipping already cached files.
+    """
+    if not filenames:
+        print("No files to download.")
+        return
+    print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
+    asyncio.run(download_all_gpkg_files(base_url, filenames, token, output_dir))
+    print("All downloads finished.")
+
+def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     """
     1) Check if any cached bounding box is a superset of 'bbox'. If so, skip request.
     2) Otherwise, POST the bounding box to 'server_url' to get a ZIP file.
@@ -70,57 +147,78 @@ def download_tiles(bbox, session, server_url=DEFAULT_SERVER_URL):
     bbox = tuple(map(float, bbox))  # (minx, miny, maxx, maxy)
 
     # Load local cache
-    cache_data = load_cache()
+    # cache_data = load_cache()
 
-    # Check for superset
-    superset_rec = find_superset_in_cache(bbox, cache_data)
-    if superset_rec:
-        print(f"[Cache HIT] Found superset in cache with bbox={superset_rec['bbox']}")
-        print(f"Already have zip file: {superset_rec['zipfile']}")
-        return  # do nothing
+    # # Check for superset
+    # superset_rec = find_superset_in_cache(bbox, cache_data)
+    # if superset_rec:
+    #     print(f"[Cache HIT] Found superset in cache with bbox={superset_rec['bbox']}")
+    #     print(f"Already have zip file: {superset_rec['zipfile']}")
+    #     return  # do nothing
 
     # If we reach here => no superset found => we do a new request
-    minx, miny, maxx, maxy = bbox
-    payload = {
-        "minx": minx,
-        "miny": miny,
-        "maxx": maxx,
-        "maxy": maxy
-    }
-    print(f"[Cache MISS] No superset found. Requesting tiles for bbox={bbox} from {server_url}")
+    # minx, miny, maxx, maxy = bbox
+    # payload = {
+    #     "minx": minx,
+    #     "miny": miny,
+    #     "maxx": maxx,
+    #     "maxy": maxy
+    # }
+    # print(f"[Cache MISS] No superset found. Requesting tiles for bbox={bbox} from {server_url}")
 
-    # We'll store the file with a name based on the bbox
-    zip_filename = f"tiles_{minx}_{miny}_{maxx}_{maxy}.zip"
+    # # We'll store the file with a name based on the bbox
+    # zip_filename = f"tiles_{minx}_{miny}_{maxx}_{maxy}.zip"
 
+    # try:
+    #     resp = session.post(server_url, json=payload, stream=True, timeout=60)
+    # except requests.RequestException as e:
+    #     print(f"Error connecting to server: {e}")
+    #     return
+
+    # if resp.status_code == 200:
+    #     print("Server returned 200 OK.")
+        # with open(zip_filename, "wb") as f:
+        #     for chunk in resp.iter_content(chunk_size=8192):
+        #         if chunk:
+        #             f.write(chunk)
+        # print(f"Saved tiles to '{zip_filename}'")
+
+    #     # Add record to cache
+    #     new_record = {
+    #         "bbox": list(bbox),
+    #         "zipfile": zip_filename
+    #     }
+    #     cache_data.append(new_record)
+    #     save_cache(cache_data)
+
+    # else:
+    #     print(f"Server returned {resp.status_code}")
+    #     try:
+    #         detail = resp.json()
+    #         print("Server response:", detail)
+    #     except Exception:
+    #         print("Server response:", resp.text)
+    
     try:
-        resp = session.post(server_url, json=payload, stream=True, timeout=60)
-    except requests.RequestException as e:
-        print(f"Error connecting to server: {e}")
+        response_data = post_gpkg_request(
+            server_url,
+            session,
+            xmin=user_bbox[0],
+            ymin=user_bbox[1],
+            xmax=user_bbox[2],
+            ymax=user_bbox[3],
+            buffer_value=2000
+        )
+    except Exception as e:
+        print(f"Error occurred: {e}")
         return
+    returned_tiles = response_data["tiles"]
+    output_dir = 'downloaded-gpkg'
+    # D) Download files in parallel (with local cache)
+    filenames_to_download = [tile["filename"] for tile in returned_tiles]
+    run_download_files(server_url, returned_tiles, session.headers.get("Authorization"), output_dir=output_dir)
+    return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
-    if resp.status_code == 200:
-        print("Server returned 200 OK. Downloading zip file...")
-        with open(zip_filename, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        print(f"Saved tiles to '{zip_filename}'")
-
-        # Add record to cache
-        new_record = {
-            "bbox": list(bbox),
-            "zipfile": zip_filename
-        }
-        cache_data.append(new_record)
-        save_cache(cache_data)
-
-    else:
-        print(f"Server returned {resp.status_code}")
-        try:
-            detail = resp.json()
-            print("Server response:", detail)
-        except Exception:
-            print("Server response:", resp.text)
 
 '''
 def main():
