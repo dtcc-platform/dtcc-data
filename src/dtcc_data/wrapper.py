@@ -1,7 +1,6 @@
 
 #!/usr/bin/env python3
 import requests
-import paramiko
 import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
@@ -121,7 +120,9 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
             return pc
         elif data_type == 'footprints':
             print("Starting the footprints download from dtcc source")
-            download_tiles(user_bbox, sessions[1], server_url=f"{url}:8001/tiles")
+            files = download_tiles(user_bbox, sessions[1], server_url=f"{url}:8001")
+            foots = io.load_footprints(files)
+            return foots 
         else:
             print("Incorrect data type.")
         return

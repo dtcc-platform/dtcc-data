@@ -73,7 +73,7 @@ def post_gpkg_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
         "maxy": ymax,
     }
     print(f"[POST] to {url} with payload={payload}")
-    resp = session.post(url, json=payload, timeout=30)
+    resp = session.post(f'{url}/tiles', json=payload, timeout=30)
     print(resp)
     if resp.status_code != 200:
         raise RuntimeError(
