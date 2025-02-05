@@ -137,8 +137,8 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     else:  
         if data_type == 'footprints':
             print("Starting footprints files download from OSM source")
-            gdf, filename = get_buildings_for_bbox(user_bbox)
-            footprints = io.load_footprints(filename)
+            gdf, filename = get_buildings_for_bbox(user_bbox.tuple)
+            footprints = io.load_footprints(filename, bounds=user_bbox)
             return footprints
         elif data_type == 'roads':
             print('Start the roads files download from OSM source')
