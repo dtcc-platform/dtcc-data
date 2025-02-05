@@ -94,6 +94,12 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     :param provider: 'dtcc' or 'OSM'
     :return: dict with info about the (dummy) download
     """
+    # Ensure user provided bounding box is a dtcc.Bounds object.
+    if isinstance(user_bbox,(tuple | list)):
+        user_bbox = Bounds(xmin=user_bbox[0],ymin=user_bbox[1],xmax=user_bbox[2],ymax=user_bbox[3])
+    if not isinstance(user_bbox,Bounds):
+        raise TypeError("user_bbox parameter must be of dtcc.Bounds type.")
+    
     # user_bbox = user_bbox.tuple
     if not epsg == '3006':
         print('Please enter the coordinates in EPSG:3006')
@@ -137,8 +143,8 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     else:  
         if data_type == 'footprints':
             print("Starting footprints files download from OSM source")
-            gdf, filename = get_buildings_for_bbox(user_bbox)
-            footprints = io.load_footprints(filename)
+            gdf, filename = get_buildings_for_bbox(user_bbox.tuple)
+            footprints = io.load_footprints(filename, bounds=user_bbox)
             return footprints
         elif data_type == 'roads':
             print('Start the roads files download from OSM source')

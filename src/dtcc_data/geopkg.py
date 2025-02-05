@@ -5,9 +5,13 @@ import os
 import json
 import aiohttp
 import requests
+from platformdirs import user_cache_dir
 
+
+CACHE_DIR = user_cache_dir(appname="dtcc-data")
+os.makedirs(CACHE_DIR,exist_ok=True)
 # Where we store local cache metadata
-CACHE_FILE = "tile_cache_superset.json"
+CACHE_FILE = os.path.join(CACHE_DIR,"tile_cache_superset.json")
 
 # The FastAPI endpoint
 DEFAULT_SERVER_URL = "http://127.0.0.1:8000/tiles"
@@ -160,7 +164,7 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
         print(f"Error occurred: {e}")
         return
     returned_tiles = response_data["tiles"]
-    output_dir = 'downloaded-gpkg'
+    output_dir = os.path.join(CACHE_DIR,'downloaded-gpkg')
     # D) Download files in parallel (with local cache)
     # filenames_to_download = [tile["filename"] for tile in returned_tiles]
     print(returned_tiles)
