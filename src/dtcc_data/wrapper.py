@@ -94,6 +94,12 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     :param provider: 'dtcc' or 'OSM'
     :return: dict with info about the (dummy) download
     """
+    # Ensure user provided bounding box is a dtcc.Bounds object.
+    if isinstance(user_bbox,(tuple | list)):
+        user_bbox = Bounds(xmin=user_bbox[0],ymin=user_bbox[1],xmax=user_bbox[2],ymax=user_bbox[3])
+    if not isinstance(user_bbox,Bounds):
+        raise TypeError("user_bbox parameter must be of dtcc.Bounds type.")
+    
     # user_bbox = user_bbox.tuple
     if not epsg == '3006':
         print('Please enter the coordinates in EPSG:3006')
