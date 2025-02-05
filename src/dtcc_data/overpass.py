@@ -6,11 +6,18 @@ import requests
 import pyproj
 import geopandas as gpd
 from shapely.geometry import box, Polygon, LineString
+from platformdirs import user_cache_dir
 
 # ------------------------------------------------------------------------
 # 1) Global constants/paths
 # ------------------------------------------------------------------------
-CACHE_METADATA_FILE = "cache_metadata.json"  # store bounding box + file records here
+BASE_CACHE_DIR = user_cache_dir(appname="dtcc-data")
+os.makedirs(BASE_CACHE_DIR,exist_ok=True)
+CACHE_DIR = os.path.join(BASE_CACHE_DIR,"downloaded_osm")
+os.makedirs(CACHE_DIR,exist_ok=True)
+# Where we store local cache metadata
+CACHE_METADATA_FILE = os.path.join(BASE_CACHE_DIR,"cache_metadata.json")
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # ------------------------------------------------------------------------
@@ -204,7 +211,7 @@ def get_buildings_for_bbox(bbox_3006):
         new_gdf = download_overpass_buildings(bbox_3006)
         print(f"Downloaded {len(new_gdf)} building footprints from Overpass.")
         # store
-        out_filename = f"buildings_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg"
+        out_filename = os.path.join(CACHE_DIR,f"buildings_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg")
         new_gdf.to_file(out_filename, layer="buildings", driver="GPKG")
         # update metadata
         records.append({

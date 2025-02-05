@@ -7,6 +7,7 @@ import folium
 import pyproj
 import asyncio
 import aiohttp
+from platformdirs import user_cache_dir
 
 # -----------------------------------------------------------------------
 # Reusable Helper Functions
@@ -189,12 +190,16 @@ def run_download_files(base_url, filenames, output_dir="downloaded_laz"):
 # The single function that does everything for the user
 # ------------------------------------------------------------------------
 def download_lidar(user_bbox, session, buffer_val=0, base_url="http://127.0.0.1:8000",
-                   output_map="client_map.html", output_dir="downloaded_laz"):
+                   output_map="client_map.html", output_dir= None):
     """
     1) POST the bounding box + buffer to the server -> get intersecting tiles
     2) Plot user bbox + tile bboxes in a Folium map
     3) Download .laz files in parallel, skipping any that exist locally
     """
+    if output_dir is None: 
+        cache_dir = user_cache_dir(appname="dtcc-data")
+        os.makedirs(cache_dir, exist_ok=True)
+        output_dir = os.path.join(cache_dir,'downloaded_laz')
     # A) Prepare endpoint
     endpoint_post = f"{base_url}/get_lidar"
 
@@ -217,6 +222,7 @@ def download_lidar(user_bbox, session, buffer_val=0, base_url="http://127.0.0.1:
 
     # C) Plot bboxes
     returned_tiles = response_data["tiles"]
+    output_map = os.path.join(cache_dir,output_map)
     plot_bboxes_folium(user_bbox, returned_tiles, out_html=output_map, crs_from="EPSG:3006")
 
     # D) Download files in parallel (with local cache)
