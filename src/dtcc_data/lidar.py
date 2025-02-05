@@ -9,6 +9,11 @@ import asyncio
 import aiohttp
 from platformdirs import user_cache_dir
 
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
 # -----------------------------------------------------------------------
 # Reusable Helper Functions
 # -----------------------------------------------------------------------
