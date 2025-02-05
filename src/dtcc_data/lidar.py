@@ -8,6 +8,11 @@ import pyproj
 import asyncio
 import aiohttp
 
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
 # -----------------------------------------------------------------------
 # Reusable Helper Functions
 # -----------------------------------------------------------------------

@@ -12,6 +12,12 @@ CACHE_FILE = "tile_cache_superset.json"
 # The FastAPI endpoint
 DEFAULT_SERVER_URL = "http://127.0.0.1:8000/tiles"
 
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
+
 def load_cache():
     """
     Load or create an empty cache metadata from tile_cache_superset.json.
@@ -140,62 +146,6 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     4) Add a new cache record with the bounding box and zip filename.
     5) If later bounding boxes are subsets of this one, we skip new requests.
     """
-    # Convert bbox to a tuple of floats
-    # bbox = tuple(map(float, bbox))  # (minx, miny, maxx, maxy)
-
-    # Load local cache
-    # cache_data = load_cache()
-
-    # # Check for superset
-    # superset_rec = find_superset_in_cache(bbox, cache_data)
-    # if superset_rec:
-    #     print(f"[Cache HIT] Found superset in cache with bbox={superset_rec['bbox']}")
-    #     print(f"Already have zip file: {superset_rec['zipfile']}")
-    #     return  # do nothing
-
-    # If we reach here => no superset found => we do a new request
-    # minx, miny, maxx, maxy = bbox
-    # payload = {
-    #     "minx": minx,
-    #     "miny": miny,
-    #     "maxx": maxx,
-    #     "maxy": maxy
-    # }
-    # print(f"[Cache MISS] No superset found. Requesting tiles for bbox={bbox} from {server_url}")
-
-    # # We'll store the file with a name based on the bbox
-    # zip_filename = f"tiles_{minx}_{miny}_{maxx}_{maxy}.zip"
-
-    # try:
-    #     resp = session.post(server_url, json=payload, stream=True, timeout=60)
-    # except requests.RequestException as e:
-    #     print(f"Error connecting to server: {e}")
-    #     return
-
-    # if resp.status_code == 200:
-    #     print("Server returned 200 OK.")
-        # with open(zip_filename, "wb") as f:
-        #     for chunk in resp.iter_content(chunk_size=8192):
-        #         if chunk:
-        #             f.write(chunk)
-        # print(f"Saved tiles to '{zip_filename}'")
-
-    #     # Add record to cache
-    #     new_record = {
-    #         "bbox": list(bbox),
-    #         "zipfile": zip_filename
-    #     }
-    #     cache_data.append(new_record)
-    #     save_cache(cache_data)
-
-    # else:
-    #     print(f"Server returned {resp.status_code}")
-    #     try:
-    #         detail = resp.json()
-    #         print("Server response:", detail)
-    #     except Exception:
-    #         print("Server response:", resp.text)
-    
     try:
         response_data = post_gpkg_request(
             server_url,
