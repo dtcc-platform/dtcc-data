@@ -28,7 +28,8 @@ dependencies = [
   "pyproj==3.7.0",
   "requests==2.32.3",
   "paramiko",
-  "geopandas"
+  "geopandas",
+  "platformdirs >= 4.3.6"
 ]
 
 [project.optional-dependencies]
