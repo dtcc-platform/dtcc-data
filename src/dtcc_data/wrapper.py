@@ -94,7 +94,7 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     :param provider: 'dtcc' or 'OSM'
     :return: dict with info about the (dummy) download
     """
-    user_bbox = user_bbox.tuple
+    # user_bbox = user_bbox.tuple
     if not epsg == '3006':
         print('Please enter the coordinates in EPSG:3006')
         return
@@ -114,14 +114,14 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
         # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
             print('Starting the Lidar files download from dtcc source')
-            files = download_lidar(user_bbox, sessions[0], base_url=f'{url}:8000')
+            files = download_lidar(user_bbox.tuple, sessions[0], base_url=f'{url}:8000')
             print(files)
-            pc = io.load_pointcloud(files)
+            pc = io.load_pointcloud(files,bounds=user_bbox)
             return pc
         elif data_type == 'footprints':
             print("Starting the footprints download from dtcc source")
-            files = download_tiles(user_bbox, sessions[1], server_url=f"{url}:8001")
-            foots = io.load_footprints(files)
+            files = download_tiles(user_bbox.tuple, sessions[1], server_url=f"{url}:8001")
+            foots = io.load_footprints(files,bounds= user_bbox)
             return foots 
         else:
             print("Incorrect data type.")
