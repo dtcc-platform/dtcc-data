@@ -108,22 +108,20 @@ async def download_gpkg_file(session, base_url, filename, output_dir):
         else:
             print(f"Failed to download {filename}, status code={resp.status}")
 
-async def download_all_gpkg_files(base_url, filenames, token, output_dir="downloaded_gpkg"):
+async def download_all_gpkg_files(base_url, filenames, output_dir="downloaded_gpkg"):
     """
     Given a list of filenames, downloads them all asynchronously from
     base_url/get/lidar/<filename> using aiohttp, skipping any local cache hits.
     """
-    
-    headers = {"Authorization": token}
-    
-    async with aiohttp.ClientSession(headers=headers) as session:
+        
+    async with aiohttp.ClientSession() as session:
         tasks = []
         for fname in filenames:
             tasks.append(download_gpkg_file(session, base_url, fname, output_dir))
         # Run all downloads concurrently
         await asyncio.gather(*tasks)
 
-def run_download_files(base_url, filenames, token, output_dir="downloaded_gpkg"):
+def run_download_files(base_url, filenames, output_dir="downloaded_gpkg"):
     """
     Entry point to run the async download with asyncio, skipping already cached files.
     """
@@ -131,7 +129,7 @@ def run_download_files(base_url, filenames, token, output_dir="downloaded_gpkg")
         print("No files to download.")
         return
     print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
-    asyncio.run(download_all_gpkg_files(base_url, filenames, token, output_dir))
+    asyncio.run(download_all_gpkg_files(base_url, filenames, output_dir))
     print("All downloads finished.")
 
 def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
@@ -216,7 +214,7 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     # D) Download files in parallel (with local cache)
     # filenames_to_download = [tile["filename"] for tile in returned_tiles]
     print(returned_tiles)
-    run_download_files(server_url, returned_tiles, session.headers.get("Authorization"), output_dir=output_dir)
+    run_download_files(server_url, returned_tiles, output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
 

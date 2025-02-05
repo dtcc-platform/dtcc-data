@@ -160,22 +160,20 @@ async def download_laz_file(session, base_url, filename, output_dir):
         else:
             print(f"Failed to download {filename}, status code={resp.status}")
 
-async def download_all_lidar_files(base_url, filenames, token, output_dir="downloaded_laz"):
+async def download_all_lidar_files(base_url, filenames, output_dir="downloaded_laz"):
     """
     Given a list of filenames, downloads them all asynchronously from
     base_url/get/lidar/<filename> using aiohttp, skipping any local cache hits.
     """
-    
-    headers = {"Authorization": token}
-    
-    async with aiohttp.ClientSession(headers=headers) as session:
+        
+    async with aiohttp.ClientSession() as session:
         tasks = []
         for fname in filenames:
             tasks.append(download_laz_file(session, base_url, fname, output_dir))
         # Run all downloads concurrently
         await asyncio.gather(*tasks)
 
-def run_download_files(base_url, filenames, token, output_dir="downloaded_laz"):
+def run_download_files(base_url, filenames, output_dir="downloaded_laz"):
     """
     Entry point to run the async download with asyncio, skipping already cached files.
     """
@@ -183,7 +181,7 @@ def run_download_files(base_url, filenames, token, output_dir="downloaded_laz"):
         print("No files to download.")
         return
     print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
-    asyncio.run(download_all_lidar_files(base_url, filenames, token, output_dir))
+    asyncio.run(download_all_lidar_files(base_url, filenames, output_dir))
     print("All downloads finished.")
 
 
@@ -223,7 +221,7 @@ def download_lidar(user_bbox, session, buffer_val=0, base_url="http://127.0.0.1:
 
     # D) Download files in parallel (with local cache)
     filenames_to_download = [tile["filename"] for tile in returned_tiles]
-    run_download_files(base_url, filenames_to_download, session.headers.get("Authorization"), output_dir=output_dir)
+    run_download_files(base_url, filenames_to_download, output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in filenames_to_download]
 
 

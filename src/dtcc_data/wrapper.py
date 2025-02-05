@@ -110,8 +110,8 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
         global sessions
         # sessions = _ssh_connect_if_needed()
         session = requests.Session()
-        if not sessions:
-            return 
+        # if not sessions:
+        #     return 
         # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
             print('Starting the Lidar files download from dtcc source')
