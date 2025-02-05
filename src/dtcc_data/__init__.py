@@ -5,4 +5,5 @@
 #from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 #from dtcc_data.geopkg import download_tiles
 from dtcc_data.wrapper import download_data
-__all__ = ["download_data"]
+from dtcc_data.cache import empty_cache
+__all__ = ["download_data", "empty_cache"]
