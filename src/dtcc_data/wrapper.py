@@ -108,19 +108,20 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
         
         # We need an SSH connection, purely for authentication
         global sessions
-        sessions = _ssh_connect_if_needed()
+        # sessions = _ssh_connect_if_needed()
+        session = requests.Session()
         if not sessions:
             return 
         # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
             print('Starting the Lidar files download from dtcc source')
-            files = download_lidar(user_bbox.tuple, sessions[0], base_url=f'{url}:8000')
+            files = download_lidar(user_bbox.tuple, session, base_url=f'{url}:8000')
             print(files)
             pc = io.load_pointcloud(files,bounds=user_bbox)
             return pc
         elif data_type == 'footprints':
             print("Starting the footprints download from dtcc source")
-            files = download_tiles(user_bbox.tuple, sessions[1], server_url=f"{url}:8001")
+            files = download_tiles(user_bbox.tuple, session, server_url=f"{url}:8001")
             foots = io.load_footprints(files,bounds= user_bbox)
             return foots 
         else:

@@ -70,7 +70,7 @@ async def ssh_auth_middleware(request: Request, call_next):
 app = FastAPI()
 
 # Mount the SSH auth middleware so all requests are protected
-app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
+# app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
 
 # Adjust paths as needed
 ATLAS_FILE = "tiled_atlas.json"

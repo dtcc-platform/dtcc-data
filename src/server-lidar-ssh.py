@@ -140,7 +140,7 @@ async def ssh_auth_middleware(request: Request, call_next):
 # 5. Create the FastAPI app
 # ------------------------------------------------------------------------
 app = FastAPI()
-app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
+# app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
 
 
 # ------------------------------------------------------------------------
