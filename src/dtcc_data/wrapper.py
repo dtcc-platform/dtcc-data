@@ -7,7 +7,7 @@ from dtcc_data.geopkg import download_tiles
 from dtcc_data.lidar import download_lidar
 from dtcc_core import io
 from dtcc_core.model import Bounds
-from logging import info, warning, debug, error
+from .logging import info, warning, debug, error
 
 # We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "roads", "footprints"]
@@ -156,8 +156,11 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
             error('Please enter a valid data type')
         return
    
-def download_pointcloud(bounds: Bounds, epsg = '3006'):
-    return download_data('lidar', 'dtcc', bounds, epsg=epsg)
+def download_pointcloud(bounds: Bounds, provider = None, epsg = '3006'):
+    if not provider or provider == 'dtcc':
+        return download_data('lidar', 'dtcc', bounds, epsg=epsg)
+    else:
+        error("Please enter a valid provider")
 
 def download_footprints(bounds: Bounds, provider = None, epsg = '3006'):
     if not provider or provider == 'dtcc':

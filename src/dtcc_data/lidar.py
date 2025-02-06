@@ -8,7 +8,7 @@ import pyproj
 import asyncio
 import aiohttp
 from platformdirs import user_cache_dir
-from logging import info, debug, warning, error
+from .logging import info, debug, warning, error
 
 try:
     import nest_asyncio
