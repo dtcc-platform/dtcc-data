@@ -6,7 +6,7 @@ import json
 import aiohttp
 import requests
 from platformdirs import user_cache_dir
-
+from logging import info, warning, debug, error
 
 CACHE_DIR = user_cache_dir(appname="dtcc-data")
 os.makedirs(CACHE_DIR,exist_ok=True)
@@ -82,9 +82,9 @@ def post_gpkg_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
         "maxx": xmax,
         "maxy": ymax,
     }
-    print(f"[POST] to {url} with payload={payload}")
+    debug(f"[POST] to {url} with payload={payload}")
     resp = session.post(f'{url}/tiles', json=payload, timeout=30)
-    print(resp)
+    debug(resp)
     if resp.status_code != 200:
         raise RuntimeError(
             f"Request failed with status {resp.status_code}:\n{resp.text}"
@@ -104,19 +104,19 @@ async def download_gpkg_file(session, base_url, filename, output_dir):
 
     # 1) Check local cache
     if os.path.exists(out_path):
-        print(f"File {filename} already in cache, skipping download.")
+        info(f"File {filename} already in cache, skipping download.")
         return  # skip
 
     # 2) If not cached, download
-    print(f"Downloading {filename} from {url}")
+    info(f"Downloading {filename} from {url}")
     async with session.get(url) as resp:
         if resp.status == 200:
             content = await resp.read()
             with open(out_path, "wb") as f:
                 f.write(content)
-            print(f"Saved {filename} to {out_path}")
+            info(f"Saved {filename} to {out_path}")
         else:
-            print(f"Failed to download {filename}, status code={resp.status}")
+            warning(f"Failed to download {filename}, status code={resp.status}")
 
 async def download_all_gpkg_files(base_url, filenames, output_dir="downloaded_gpkg"):
     """
@@ -136,11 +136,11 @@ def run_download_files(base_url, filenames, output_dir="downloaded_gpkg"):
     Entry point to run the async download with asyncio, skipping already cached files.
     """
     if not filenames:
-        print("No files to download.")
+        info("No files to download.")
         return
-    print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
+    debug(f"Downloading {len(filenames)} files in parallel (with cache check)...")
     asyncio.run(download_all_gpkg_files(base_url, filenames, output_dir))
-    print("All downloads finished.")
+    info("All downloads finished.")
 
 def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     """
@@ -161,13 +161,12 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
             buffer_value=2000
         )
     except Exception as e:
-        print(f"Error occurred: {e}")
+        warning(f"Error occurred: {e}")
         return
     returned_tiles = response_data["tiles"]
     output_dir = os.path.join(CACHE_DIR,'downloaded-gpkg')
     # D) Download files in parallel (with local cache)
     # filenames_to_download = [tile["filename"] for tile in returned_tiles]
-    print(returned_tiles)
     run_download_files(server_url, returned_tiles, output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
