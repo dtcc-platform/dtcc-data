@@ -29,8 +29,8 @@ jobs:
           python -m pip install --upgrade pip pytest
           python -m pip install .
       
+        if: matrix.os != 'windows-latest'
       - name: Run tests
-        if: ${{ matrix.os }} != windows-latest
         run: |
           pytest tests/test*.py --maxfail=1 --disable-warnings --verbose
 
