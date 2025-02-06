@@ -17,6 +17,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.11, 3.12]
+    
     steps:
       - uses: actions/checkout@v3
       
@@ -29,8 +30,8 @@ jobs:
           python -m pip install --upgrade pip pytest
           python -m pip install .
       
-        if: matrix.os != 'windows-latest'
       - name: Run tests
+        if: runner.os != 'Windows'
         run: |
           pytest tests/test*.py --maxfail=1 --disable-warnings --verbose
 
