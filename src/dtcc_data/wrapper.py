@@ -169,3 +169,9 @@ def download_footprints(bounds: Bounds, provider = None, epsg = '3006'):
         return download_data('footprints', "OSM", bounds, epsg = epsg)
     else:
         error("Please enter a valid provider")
+
+def download_roadnetwork(bounds: Bounds, provider = None, epsg = '3006'):
+    if provider == 'OSM':
+        download_data('roads', provider, bounds, epsg=epsg)
+    else:
+        error("Please enter a valid provider")
