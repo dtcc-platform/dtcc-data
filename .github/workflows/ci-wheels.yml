@@ -27,6 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip pytest
+          sed -i 's|"dtcc-core@git+https://github.com/dtcc-platform/dtcc-core.git@develop"|"dtcc-core"|g' pyproject.toml
           # e.g. install any test dependencies here
           python -m pip install .
       
