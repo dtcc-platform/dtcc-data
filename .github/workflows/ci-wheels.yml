@@ -32,7 +32,7 @@ jobs:
       
       - name: Run tests
         run: |
-          pytest tetsts/test*.py --maxfail=1 --disable-warnings --verbose
+          pytest tests/test*.py --maxfail=1 --disable-warnings --verbose
 
   # 2) Build a universal wheel + sdist on a single OS
   build_dist:
