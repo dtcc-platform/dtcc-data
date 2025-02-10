@@ -8,6 +8,7 @@ import pyproj
 import asyncio
 import aiohttp
 from platformdirs import user_cache_dir
+from .logging import info, debug, warning, error
 
 try:
     import nest_asyncio
@@ -31,9 +32,9 @@ def post_lidar_request(url, session, xmin, ymin, xmax, ymax, buffer_value=0):
         "ymax": ymax,
         "buffer": buffer_value
     }
-    print(f"[POST] to {url} with payload={payload}")
+    debug(f"[POST] to {url} with payload={payload}")
     resp = session.post(url, json=payload, timeout=30)
-    print(resp)
+    debug(resp)
     if resp.status_code != 200:
         raise RuntimeError(
             f"Request failed with status {resp.status_code}:\n{resp.text}"
@@ -134,7 +135,7 @@ def plot_bboxes_folium(user_bbox, tiles, out_html="client_map.html", crs_from="E
 
     # 12) Save
     m.save(out_html)
-    print(f"Map saved to {out_html}")
+    debug(f"Map saved to {out_html}")
 
 
 # ------------------------------------------------------------------------
@@ -152,19 +153,19 @@ async def download_laz_file(session, base_url, filename, output_dir):
 
     # 1) Check local cache
     if os.path.exists(out_path):
-        print(f"File {filename} already in cache, skipping download.")
+        info(f"File {filename} already in cache, skipping download.")
         return  # skip
 
     # 2) If not cached, download
-    print(f"Downloading {filename} from {url}")
+    info(f"Downloading {filename} from {url}")
     async with session.get(url) as resp:
         if resp.status == 200:
             content = await resp.read()
             with open(out_path, "wb") as f:
                 f.write(content)
-            print(f"Saved {filename} to {out_path}")
+            info(f"Saved {filename} to {out_path}")
         else:
-            print(f"Failed to download {filename}, status code={resp.status}")
+            warning(f"Failed to download {filename}, status code={resp.status}")
 
 async def download_all_lidar_files(base_url, filenames, output_dir="downloaded_laz"):
     """
@@ -184,11 +185,11 @@ def run_download_files(base_url, filenames, output_dir="downloaded_laz"):
     Entry point to run the async download with asyncio, skipping already cached files.
     """
     if not filenames:
-        print("No files to download.")
+        info("No files to download.")
         return
-    print(f"Downloading {len(filenames)} files in parallel (with cache check)...")
+    debug(f"Downloading {len(filenames)} files in parallel (with cache check)...")
     asyncio.run(download_all_lidar_files(base_url, filenames, output_dir))
-    print("All downloads finished.")
+    info("All downloads finished.")
 
 
 # ------------------------------------------------------------------------
@@ -220,10 +221,10 @@ def download_lidar(user_bbox, session, buffer_val=0, base_url="http://127.0.0.1:
             buffer_value=buffer_val
         )
     except Exception as e:
-        print(f"Error occurred: {e}")
+        warning(f"Error occurred: {e}")
         return
 
-    print("Response from server:", response_data)
+    debug("Response from server:", response_data)
 
     # C) Plot bboxes
     returned_tiles = response_data["tiles"]

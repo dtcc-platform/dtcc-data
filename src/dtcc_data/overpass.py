@@ -7,6 +7,7 @@ import pyproj
 import geopandas as gpd
 from shapely.geometry import box, Polygon, LineString
 from platformdirs import user_cache_dir
+from .logging import info, warning, debug, error
 
 # ------------------------------------------------------------------------
 # 1) Global constants/paths
@@ -90,7 +91,7 @@ def download_overpass_buildings(bbox_3006):
     (._;>;);
     out body;
     """
-    print(f"Querying Overpass for buildings in bbox={bbox_3006}")
+    info(f"Querying Overpass for buildings in bbox={bbox_3006}")
     resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
     resp.raise_for_status()
     data = resp.json()
@@ -148,7 +149,7 @@ def download_overpass_roads(bbox_3006):
     (._;>;);
     out body;
     """
-    print(f"Querying Overpass for roads in bbox={bbox_3006}")
+    info(f"Querying Overpass for roads in bbox={bbox_3006}")
     resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
     resp.raise_for_status()
     data = resp.json()
@@ -200,16 +201,16 @@ def get_buildings_for_bbox(bbox_3006):
     records = load_cache_metadata()
     sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "buildings"])
     if sup_rec:
-        print("Found superset bounding box for buildings:", sup_rec["bbox"])
+        debug("Found superset bounding box for buildings:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
         saved_filename = sup_rec['filepath']
-        print(f"Subset size: {len(subset_gdf)} features for buildings in bbox={bbox_3006}")
+        info(f"Subset size: {len(subset_gdf)} features for buildings in bbox={bbox_3006}")
         return subset_gdf, saved_filename
     else:
         # Overpass
         new_gdf = download_overpass_buildings(bbox_3006)
-        print(f"Downloaded {len(new_gdf)} building footprints from Overpass.")
+        info(f"Downloaded {len(new_gdf)} building footprints from Overpass.")
         # store
         out_filename = os.path.join(CACHE_DIR,f"buildings_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg")
         new_gdf.to_file(out_filename, layer="buildings", driver="GPKG")
@@ -236,16 +237,16 @@ def get_roads_for_bbox(bbox_3006):
     records = load_cache_metadata()
     sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "roads"])
     if sup_rec:
-        print("Found superset bounding box for roads:", sup_rec["bbox"])
+        info("Found superset bounding box for roads:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
         saved_filename = sup_rec['filepath']
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
-        print(f"Subset size: {len(subset_gdf)} features for roads in bbox={bbox_3006}")
+        info(f"Subset size: {len(subset_gdf)} features for roads in bbox={bbox_3006}")
         return subset_gdf, saved_filename
     else:
         # Overpass
         new_gdf = download_overpass_roads(bbox_3006)
-        print(f"Downloaded {len(new_gdf)} road features from Overpass.")
+        info(f"Downloaded {len(new_gdf)} road features from Overpass.")
         # store
         out_filename = f"roads_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg"
         new_gdf.to_file(out_filename, layer="roads", driver="GPKG")

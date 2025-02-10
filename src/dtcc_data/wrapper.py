@@ -7,6 +7,7 @@ from dtcc_data.geopkg import download_tiles
 from dtcc_data.lidar import download_lidar
 from dtcc_core import io
 from dtcc_core.model import Bounds
+from .logging import info, warning, debug, error
 
 # We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "roads", "footprints"]
@@ -31,7 +32,7 @@ def get_authenticated_session(base_url: str, username: str, password: str) -> re
 
     response = requests.post(token_url, json=payload)
     if response.status_code != 200:
-        print('Token request failed.', 'Status code: ', response.status_code)
+        error('Token request failed.', 'Status code: ', response.status_code)
         return
 
     data = response.json()
@@ -59,7 +60,7 @@ def _ssh_connect_if_needed():
     global sessions
     # If no credentials, prompt user
     if not sessions:
-        print("SSH Authentication required for dtcc provider.")
+        info("SSH Authentication required for dtcc provider.")
         USERNAME = input("Enter SSH username: ")
         PASSWORD = getpass.getpass("Enter SSH password: ")
         lidar_session = get_authenticated_session('http://compute.dtcc.chalmers.se:8000', USERNAME, PASSWORD)
@@ -84,7 +85,7 @@ def _ssh_connect_if_needed():
 
     # print("SSH authenticated with data.dtcc.chalmers.se (no SFTP).")
 
-def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
+def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
     """
     A wrapper for downloading data, but with a dummy step for actual file transfer.
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
@@ -95,14 +96,14 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
     :return: dict with info about the (dummy) download
     """
     # Ensure user provided bounding box is a dtcc.Bounds object.
-    if isinstance(user_bbox,(tuple | list)):
-        user_bbox = Bounds(xmin=user_bbox[0],ymin=user_bbox[1],xmax=user_bbox[2],ymax=user_bbox[3])
-    if not isinstance(user_bbox,Bounds):
+    if isinstance(bounds,(tuple | list)):
+        bounds = Bounds(xmin=bounds[0],ymin=bounds[1],xmax=bounds[2],ymax=bounds[3])
+    if not isinstance(bounds,Bounds):
         raise TypeError("user_bbox parameter must be of dtcc.Bounds type.")
     
     # user_bbox = user_bbox.tuple
     if not epsg == '3006':
-        print('Please enter the coordinates in EPSG:3006')
+        warning('Please enter the coordinates in EPSG:3006')
         return
     # Validate
     if data_type not in valid_types:
@@ -120,18 +121,18 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
         #     return 
         # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
-            print('Starting the Lidar files download from dtcc source')
-            files = download_lidar(user_bbox.tuple, session, base_url=f'{url}:8000')
-            print(files)
-            pc = io.load_pointcloud(files,bounds=user_bbox)
+            info('Starting the Lidar files download from dtcc source')
+            files = download_lidar(bounds.tuple, session, base_url=f'{url}:8000')
+            debug(files)
+            pc = io.load_pointcloud(files,bounds=bounds)
             return pc
         elif data_type == 'footprints':
-            print("Starting the footprints download from dtcc source")
-            files = download_tiles(user_bbox.tuple, session, server_url=f"{url}:8001")
-            foots = io.load_footprints(files,bounds= user_bbox)
+            info("Starting the footprints download from dtcc source")
+            files = download_tiles(bounds.tuple, session, server_url=f"{url}:8001")
+            foots = io.load_footprints(files,bounds= bounds)
             return foots 
         else:
-            print("Incorrect data type.")
+            error("Incorrect data type.")
         return
         # return {
         #     "data_type": data_type,
@@ -142,78 +143,35 @@ def download_data(data_type: str, provider: str, user_bbox: Bounds, epsg = '3006
 
     else:  
         if data_type == 'footprints':
-            print("Starting footprints files download from OSM source")
-            gdf, filename = get_buildings_for_bbox(user_bbox.tuple)
-            footprints = io.load_footprints(filename, bounds=user_bbox)
+            info("Starting footprints files download from OSM source")
+            gdf, filename = get_buildings_for_bbox(bounds.tuple)
+            footprints = io.load_footprints(filename, bounds=bounds)
             return footprints
         elif data_type == 'roads':
-            print('Start the roads files download from OSM source')
-            gdf, filename = get_roads_for_bbox(user_bbox)
+            info('Start the roads files download from OSM source')
+            gdf, filename = get_roads_for_bbox(bounds)
             roads = io.load_roadnetwork(filename)
             return roads
         else:
-            print('Please enter a valid data type')
+            error('Please enter a valid data type')
         return
-        # return {
-        #     "data_type": data_type,
-        #     "provider": provider,
-        #     "status": "Dummy download from OSM (no SSH)."
-        # }
-
-def main():
-    """
-    Example usage demonstrating how we do an SSH-based auth only if
-    data_type+provider is a dtcc combination, otherwise a dummy method with OSM.
-    """
-
-    print("=== Download LIDAR from dtcc => triggers SSH auth if not already connected ===")
-    result1 = download_data("lidar", "dtcc")
-    print("Result1:", result1)
-
-    print("=== Download footprints from dtcc => triggers SSH auth if not already connected ===")
-    result2 = download_data("footprints", "dtcc")
-    print("Result2:", result2)
-
-    print("\n=== Download roads from dtcc => already connected if previous step succeeded ===")
-    result3 = download_data("roads", "dtcc")
-    print("Result3:", result3)
-
-    print("\n=== Download LIDAR from OSM => no SSH needed ===")
-    result4 = download_data("lidar", "OSM")
-    print("Result4:", result4)
-
-    print("\n=== Download roads from OSM => no SSH needed ===")
-    result5 = download_data("roads", "OSM")
-    print("Result5:", result5)
-
- # New authenticated session, only needed for data_provider="dtcc"
- # Replace with your actual server URL
-    BASE_URL = "http://localhost:8000"
-    USERNAME = "myUser"
-    PASSWORD = "myPass"
-
-    # Get an authenticated session
-    session = get_authenticated_session(BASE_URL, USERNAME, PASSWORD)
-
-    # Then make calls with that session:
-    lidar_endpoint = f"{BASE_URL}/get_lidar"
-    payload = {
-        "xmin": 267000,
-        "ymin": 6519000,
-        "xmax": 268000,
-        "ymax": 6521000,
-        "buffer": 100
-    }
-
-    # Now the session automatically includes the Authorization header
-    resp = session.post(lidar_endpoint, json=payload)
-    if resp.ok:
-        print("Success:", resp.json())
-    else:
-        print("Error:", resp.status_code, resp.text)
-
-# ---------------------------------------------------------------------
-# Example usage:
-# ---------------------------------------------------------------------
-# if __name__ == "__main__":
    
+def download_pointcloud(bounds: Bounds, provider = None, epsg = '3006'):
+    if not provider or provider == 'dtcc':
+        return download_data('lidar', 'dtcc', bounds, epsg=epsg)
+    else:
+        error("Please enter a valid provider")
+
+def download_footprints(bounds: Bounds, provider = None, epsg = '3006'):
+    if not provider or provider == 'dtcc':
+        return download_data('footprints', 'dtcc', bounds, epsg=epsg)
+    elif provider == 'OSM':
+        return download_data('footprints', "OSM", bounds, epsg = epsg)
+    else:
+        error("Please enter a valid provider")
+
+def download_roadnetwork(bounds: Bounds, provider = None, epsg = '3006'):
+    if provider == 'OSM':
+        download_data('roads', provider, bounds, epsg=epsg)
+    else:
+        error("Please enter a valid provider")
