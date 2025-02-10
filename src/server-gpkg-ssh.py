@@ -23,7 +23,7 @@ from rate_limiter import create_rate_limit_middleware
 
 SSH_HOST = "data2.dtcc.chalmers.se"
 SSH_PORT = 22  # default SSH
-DEPLOY_PORT = 8000 
+DEPLOY_PORT = 8001
 
 def create_app():
     app = FastAPI()
@@ -228,6 +228,6 @@ def get_gpkg_file(filename: str):
     return FileResponse(path=gpkg_path, media_type="application/octet-stream", filename=filename)
 
 
-if __name__ == "__main__":
-    # run uvicorn with multiple workers
-    uvicorn.run("main:app", host="0.0.0.0", port=DEPLOY_PORT, workers=2)
+#if __name__ == "__main__":
+#    # run uvicorn with multiple workers
+#    uvicorn.run("server-gpkg-ssh:app", host="0.0.0.0", port=DEPLOY_PORT, workers=2)
