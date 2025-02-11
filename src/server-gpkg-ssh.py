@@ -16,8 +16,34 @@ from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+import uvicorn
+
+# Import our factory function
+from rate_limiter import create_rate_limit_middleware
+
 SSH_HOST = "data2.dtcc.chalmers.se"
 SSH_PORT = 22  # default SSH
+DEPLOY_PORT = 8001
+
+def create_app():
+    app = FastAPI()
+
+    # Initialize the rate limiter
+    rate_limit_middleware = create_rate_limit_middleware(
+        request_limit=5,         # e.g. 5 requests
+        time_window=30,          # per 30 seconds
+        global_request_limit=20  # entire server can't exceed 20 requests in 30s
+    )
+
+    # Add the middleware
+    app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
+
+    @app.get("/")
+    def read_root():
+        return {"message": "Hello world"}
+
+    return app
+
 
 def ssh_authenticate(username: str, password: str) -> bool:
     """Attempt SSH login to data2.dtcc.chalmers.se. Return True if success, else False."""
@@ -67,7 +93,8 @@ async def ssh_auth_middleware(request: Request, call_next):
 
 # --- End of Added Lines ---
 
-app = FastAPI()
+#app = FastAPI()
+app = create_app()
 
 # Mount the SSH auth middleware so all requests are protected
 # app.add_middleware(BaseHTTPMiddleware, dispatch=ssh_auth_middleware)
@@ -199,3 +226,8 @@ def get_gpkg_file(filename: str):
 
     # Return the file
     return FileResponse(path=gpkg_path, media_type="application/octet-stream", filename=filename)
+
+
+#if __name__ == "__main__":
+#    # run uvicorn with multiple workers
+#    uvicorn.run("server-gpkg-ssh:app", host="0.0.0.0", port=DEPLOY_PORT, workers=2)

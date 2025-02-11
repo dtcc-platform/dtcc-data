@@ -7,7 +7,7 @@ __pycache__
 *.pyc
 .DS_Store
 *.egg-info/
-
+src/nohup.out
 *.so
 *.o
 *.a
