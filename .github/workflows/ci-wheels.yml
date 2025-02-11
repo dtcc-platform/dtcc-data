@@ -6,7 +6,7 @@ on:
  # pull_request:
  # release:
  #   types: [published]
- # workflow_dispatch:
+ workflow_dispatch:
 
 jobs:
   # 1) Test the code on multiple Python versions + OSes
