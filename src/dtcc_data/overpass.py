@@ -237,7 +237,7 @@ def get_roads_for_bbox(bbox_3006):
     records = load_cache_metadata()
     sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "roads"])
     if sup_rec:
-        info("Found superset bounding box for roads:", sup_rec["bbox"])
+        debug("Found superset bounding box for roads:", sup_rec["bbox"])
         gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
         saved_filename = sup_rec['filepath']
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
@@ -248,7 +248,7 @@ def get_roads_for_bbox(bbox_3006):
         new_gdf = download_overpass_roads(bbox_3006)
         info(f"Downloaded {len(new_gdf)} road features from Overpass.")
         # store
-        out_filename = f"roads_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg"
+        out_filename = os.path.join(CACHE_DIR, f"roads_{bbox_3006[0]}_{bbox_3006[1]}_{bbox_3006[2]}_{bbox_3006[3]}.gpkg")
         new_gdf.to_file(out_filename, layer="roads", driver="GPKG")
         # update metadata
         records.append({

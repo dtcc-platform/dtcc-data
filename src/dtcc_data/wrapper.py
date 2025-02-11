@@ -112,14 +112,9 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
         raise ValueError(f"Invalid provider '{provider}'. Must be one of {valid_providers}.")
 
     if provider == "dtcc":
-        
-        # We need an SSH connection, purely for authentication
+
         global sessions
-        # sessions = _ssh_connect_if_needed()
         session = requests.Session()
-        # if not sessions:
-        #     return 
-        # If we reach here, SSH authentication succeeded
         if data_type == 'lidar':
             info('Starting the Lidar files download from dtcc source')
             files = download_lidar(bounds.tuple, session, base_url=f'{url}:8000')
@@ -134,12 +129,6 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
         else:
             error("Incorrect data type.")
         return
-        # return {
-        #     "data_type": data_type,
-        #     "provider": provider,
-        #     "status": "Dummy download from dtcc (SSH auth succeeded)."
-        # }
-        
 
     else:  
         if data_type == 'footprints':
@@ -149,7 +138,7 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
             return footprints
         elif data_type == 'roads':
             info('Start the roads files download from OSM source')
-            gdf, filename = get_roads_for_bbox(bounds)
+            gdf, filename = get_roads_for_bbox(bounds.tuple)
             roads = io.load_roadnetwork(filename)
             return roads
         else:
