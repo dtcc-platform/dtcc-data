@@ -146,21 +146,21 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
         return
    
 def download_pointcloud(bounds: Bounds, provider = None, epsg = '3006'):
-    if not provider or provider == 'dtcc':
+    if not provider or provider.lower() == 'dtcc':
         return download_data('lidar', 'dtcc', bounds, epsg=epsg)
     else:
         error("Please enter a valid provider")
 
 def download_footprints(bounds: Bounds, provider = None, epsg = '3006'):
-    if not provider or provider == 'dtcc':
+    if not provider or provider.lower() == 'dtcc':
         return download_data('footprints', 'dtcc', bounds, epsg=epsg)
-    elif provider == 'OSM':
+    elif provider.upper() == 'OSM':
         return download_data('footprints', "OSM", bounds, epsg = epsg)
     else:
         error("Please enter a valid provider")
 
 def download_roadnetwork(bounds: Bounds, provider = None, epsg = '3006'):
-    if provider == 'OSM':
-        download_data('roads', provider, bounds, epsg=epsg)
+    if provider.upper() == 'OSM':
+        download_data('roads', "OSM", bounds, epsg=epsg)
     else:
         error("Please enter a valid provider")
