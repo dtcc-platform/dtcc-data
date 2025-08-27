@@ -224,7 +224,7 @@ def main():
     """Main function to run the download process"""
     
     # Configuration
-    ORDER_ID = "b1b82908-55e1-495e-958c-76a201cd2063"
+    ORDER_ID = "e7a67a25-ac28-4c3c-b04b-1b97208a2092"
     
     # Get credentials (you should replace these or use environment variables)
     print("=== Geotorget Download Client ===\n")
