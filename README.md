@@ -13,6 +13,8 @@ supported by Sweden’s Innovation Agency Vinnova under Grant No. 2019-421 00041
 This project is documented as part of the
 [DTCC Platform Documentation](https://platform.dtcc.chalmers.se/).
 
+For the merged data server deployment and usage, see `README-server.md`.
+
 ## Authors (in order of appearance)
 
 * [Dag Wästerberg](https://chalmersindustriteknik.se/sv/medarbetare/dag-wastberg/)
