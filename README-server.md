@@ -20,10 +20,13 @@ Requirements
 - Dependencies (from this repo): `fastapi`, `paramiko` (already in `pyproject.toml`)
 - Runtime server: `uvicorn`
 
-Install (if needed):
+Python 3.11 venv (recommended)
+------------------------------
 
 ```bash
-pip install "uvicorn[standard]"
+python3.11 -m venv .venv311
+source .venv311/bin/activate
+pip install "uvicorn[standard]" fastapi paramiko requests
 ```
 
 Quick Start (Local)
@@ -48,6 +51,12 @@ Option B — run via uvicorn module path (ensure `PYTHONPATH=src` so the module 
 ```bash
 export PYTHONPATH=src
 uvicorn server-lidar-gpkg-ssh-merged:app --host 0.0.0.0 --port 8001
+```
+
+macOS note: If you see multiprocessing errors with the rate limiter, disable it locally:
+
+```bash
+ENABLE_RATE_LIMIT=false ENABLE_AUTH=true PORT=8001 python3.11 src/server-lidar-gpkg-ssh-merged.py
 ```
 
 Configuration (Environment Variables)
@@ -110,6 +119,95 @@ Failure example:
 
 ```json
 {"authenticated": false, "reason": "insufficient permission"}
+```
+
+Copy/Paste Recipes
+------------------
+
+Environment base:
+
+```bash
+export BASE=http://localhost:8001
+```
+
+GitHub auth check (copy/paste):
+
+```bash
+# Check only
+export GITHUB_TOKEN=ghp_...
+curl -sS -X POST "$BASE/auth/github" \
+  -H 'Content-Type: application/json' \
+  -d "{\"token\":\"$GITHUB_TOKEN\"}"
+
+# Check + issue server token
+export SERVER_TOKEN=$(curl -sS -X POST "$BASE/auth/github" \
+  -H 'Content-Type: application/json' \
+  -d "{\"token\":\"$GITHUB_TOKEN\",\"issue_token\":true}" | jq -r .token)
+echo "$SERVER_TOKEN"
+
+# Using Authorization header for GitHub token instead of JSON
+curl -sS -X POST "$BASE/auth/github" \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"issue_token":true}'
+```
+
+Use server token to call endpoints:
+
+```bash
+# LiDAR tiles
+curl -sS -X POST "$BASE/lidar/tiles" \
+  -H "Authorization: Bearer $SERVER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"xmin":267000,"ymin":6519000,"xmax":268000,"ymax":6521000,"buffer":0}'
+
+# GPKG tiles
+curl -sS -X POST "$BASE/gpkg/tiles" \
+  -H "Authorization: Bearer $SERVER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"minx":268234.462,"miny":6473567.915,"maxx":278234.462,"maxy":6483567.915}'
+
+# LiDAR file download
+FILENAME=example.laz
+curl -fSL -H "Authorization: Bearer $SERVER_TOKEN" "$BASE/files/lidar/$FILENAME" -o "$FILENAME"
+
+# GPKG file download
+FILENAME=tile.gpkg
+curl -fSL -H "Authorization: Bearer $SERVER_TOKEN" "$BASE/files/gpkg/$FILENAME" -o "$FILENAME"
+```
+
+Access request (copy/paste):
+
+```bash
+curl -sS -X POST "$BASE/access/request" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ada","surname":"Lovelace","email":"ada@example.org","github_username":"ada-l"}'
+```
+
+Configure GitHub Issues for access requests:
+
+```bash
+# Classic PAT scopes:
+# - Public repo: public_repo
+# - Private repo: repo
+# Fine-grained PAT: Grant repository access to dtcc-platform/dtcc-auth and Issues: Read and write
+
+export ACCESS_GITHUB_TOKEN=ghp_...
+export GITHUB_REPO=dtcc-platform/dtcc-auth
+# optional labels
+export ACCESS_GITHUB_LABELS="access-request, dtcc-data"
+
+# Test by sending an access request (see command above). Response should include github_issue_url.
+```
+
+GitHub Enterprise examples:
+
+```bash
+export GITHUB_API_URL=https://github.mycompany.com/api/v3
+export GITHUB_REPO=my-org/my-auth-repo
+export ACCESS_GITHUB_TOKEN=ghp_...
+
+# Then use the same /auth/github and /access/request commands as above.
 ```
 
 Endpoints
