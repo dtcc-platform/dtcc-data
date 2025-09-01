@@ -37,8 +37,6 @@ from typing import Dict, Any, Optional, Callable, Tuple
 
 import secrets
 import requests
-import smtplib
-from email.message import EmailMessage
 from datetime import datetime, timezone
 import re
 import threading
@@ -89,16 +87,11 @@ GPKG_DATA_DIRECTORY = os.getenv("GPKG_DATA_DIRECTORY", "/mnt/raid0/testing_by/ti
 # GitHub auth configuration
 GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://api.github.com")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "dtcc-platform/dtcc-auth")
+ACCESS_GITHUB_TOKEN = os.getenv("ACCESS_GITHUB_TOKEN")
+ACCESS_GITHUB_LABELS = [s.strip() for s in os.getenv("ACCESS_GITHUB_LABELS", "access-request").split(",") if s.strip()]
 
 # Access request configuration
 ACCESS_REQUESTS_DIR = os.getenv("ACCESS_REQUESTS_DIR", "/var/lib/dtcc-data/access_requests")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@mysite.org")
-SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
-SMTP_PORT = getenv_int("SMTP_PORT", 25)
-SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").lower() in {"1", "true", "yes", "on"}
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASS = os.getenv("SMTP_PASS")
-SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@dtcc-data.local")
 
 # Access request throttling
 ACCESS_REQ_WINDOW_SECONDS = getenv_int("ACCESS_REQ_WINDOW_SECONDS", 3600)
@@ -183,32 +176,53 @@ def append_access_request(rec: Dict[str, Any]) -> str:
     return file_path
 
 
-def send_admin_notification(rec: Dict[str, Any]) -> bool:
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = f"DTCC Data Access Request: {rec.get('name','')} {rec.get('surname','')} ({rec.get('github_username','')})"
-        msg["From"] = SMTP_FROM
-        msg["To"] = ADMIN_EMAIL
-        body = (
-            "New access request received:\n\n"
-            f"Name: {rec.get('name','')} {rec.get('surname','')}\n"
-            f"Email: {rec.get('email','')}\n"
-            f"GitHub: {rec.get('github_username','')}\n"
-            f"Remote: {rec.get('remote_addr','unknown')}\n"
-            f"Timestamp: {rec.get('timestamp','')}\n"
-            f"User-Agent: {rec.get('user_agent','')}\n"
-        )
-        msg.set_content(body)
+def create_github_access_issue(rec: Dict[str, Any]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "created": False,
+        "url": None,
+        "number": None,
+        "error": None,
+    }
+    token = ACCESS_GITHUB_TOKEN
+    if not token:
+        result["error"] = "missing token"
+        return result
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as s:
-            if SMTP_STARTTLS:
-                s.starttls()
-            if SMTP_USER and SMTP_PASS:
-                s.login(SMTP_USER, SMTP_PASS)
-            s.send_message(msg)
-        return True
-    except Exception:
-        return False
+    owner_repo = GITHUB_REPO
+    url = f"{GITHUB_API_URL.rstrip('/')}/repos/{owner_repo}/issues"
+    title = f"Access request: {rec.get('name','')} {rec.get('surname','')} ({rec.get('github_username','')})"
+    body_lines = [
+        "New access request received:\n",
+        f"Name: {rec.get('name','')} {rec.get('surname','')}",
+        f"Email: {rec.get('email','')}",
+        f"GitHub: {rec.get('github_username','')}",
+        f"Remote: {rec.get('remote_addr','unknown')}",
+        f"Timestamp: {rec.get('timestamp','')}",
+        f"User-Agent: {rec.get('user_agent','')}",
+    ]
+    payload = {
+        "title": title,
+        "body": "\n".join(body_lines),
+        "labels": ACCESS_GITHUB_LABELS,
+    }
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "dtcc-data-server",
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        if resp.status_code in (200, 201):
+            data = resp.json()
+            result["created"] = True
+            result["url"] = data.get("html_url") or data.get("url")
+            result["number"] = data.get("number")
+        else:
+            result["error"] = f"http {resp.status_code}"
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 
 
 # ---------------- Spam/throttle helpers for Access Requests ----------------
@@ -620,11 +634,13 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to persist request: {e}")
 
-        email_sent = send_admin_notification(record)
+        # Create GitHub issue if configured
+        gh_issue = create_github_access_issue(record)
         return {
             "accepted": True,
-            "email_sent": bool(email_sent),
-            "stored_at": file_path,
+            "github_issue_created": bool(gh_issue.get("created")),
+            "github_issue_url": gh_issue.get("url"),
+            "github_issue_number": gh_issue.get("number"),
         }
 
     return app

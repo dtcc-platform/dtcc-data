@@ -136,7 +136,7 @@ Health check:
 Access Request
 --------------
 
-Anonymous endpoint to submit an access request. Stores the request on the server and emails the admin.
+Anonymous endpoint to submit an access request. Stores the request on the server and (optionally) creates a GitHub Issue.
 
 - Path: `POST /access/request`
 - Payload:
@@ -150,22 +150,24 @@ Anonymous endpoint to submit an access request. Stores the request on the server
 }
 ```
 
-Returns:
+Returns (GitHub issue fields included when configured; no server paths exposed):
 
 ```json
 {
   "accepted": true,
-  "email_sent": true,
-  "stored_at": "/var/lib/dtcc-data/access_requests/requests.jsonl"
+  "github_issue_created": true,
+  "github_issue_url": "https://github.com/dtcc-platform/dtcc-auth/issues/123",
+  "github_issue_number": 123
 }
 ```
 
 Configure with env vars:
 
 - `ACCESS_REQUESTS_DIR` (default: `/var/lib/dtcc-data/access_requests`)
-- `ADMIN_EMAIL` (default: `admin@mysite.org`)
-- `SMTP_HOST` (default: `localhost`), `SMTP_PORT` (default: `25`)
-- `SMTP_STARTTLS` (default: `false`), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+- `ACCESS_GITHUB_TOKEN` — if set, the server will create a GitHub Issue for each access request.
+- `ACCESS_GITHUB_LABELS` (default: `access-request`) — comma-separated labels to apply to the issue.
+- `GITHUB_API_URL` (default: `https://api.github.com`) — for GitHub Enterprise.
+- `GITHUB_REPO` (default: `dtcc-platform/dtcc-auth`) — repo where issues are created.
 
 Spam Controls & Throttling:
 
@@ -186,6 +188,16 @@ curl -sS -X POST http://localhost:8001/access/request \
         "email": "ada@example.org",
         "github_username": "ada-l"
       }'
+```
+
+If `ACCESS_GITHUB_TOKEN` is configured with permissions to create issues on `GITHUB_REPO`, the response also includes:
+
+```json
+{
+  "github_issue_created": true,
+  "github_issue_url": "https://github.com/dtcc-platform/dtcc-auth/issues/123",
+  "github_issue_number": 123
+}
 ```
 
 curl Examples
