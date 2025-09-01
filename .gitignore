@@ -13,4 +13,4 @@ src/nohup.out
 *.a
 */.venv*/
 .venv/*
-requests.jsonl
+*.jsonl
