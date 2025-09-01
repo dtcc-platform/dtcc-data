@@ -1,12 +1,12 @@
-DTCC Unified LiDAR+GPKG Server
-================================
+DTCC Unified LiDAR+GPKG Server (GitHub Auth)
+============================================
 
-This document covers running and using the merged FastAPI server `src/server-lidar-gpkg-ssh-merged.py` which serves both LiDAR (.laz) and GPKG tiles, with SSH-backed token authentication and optional rate limiting.
+This document covers running and using the merged FastAPI server `src/server-lidar-gpkg-merged-github-auth.py` which serves both LiDAR (.laz) and GPKG tiles, with GitHub-based authentication and optional rate limiting.
 
 Features
 --------
 
-- Token authentication via SSH username/password (Paramiko) → time-limited tokens.
+- GitHub-based authorization with optional issuance of server tokens.
 - Optional rate limiting (global and per-client) if `rate_limiter` middleware is available.
 - Endpoints for LiDAR tile discovery and file serving.
 - Endpoints for GPKG tile discovery and file serving.
@@ -17,7 +17,7 @@ Requirements
 ------------
 
 - Python 3.10+
-- Dependencies (from this repo): `fastapi`, `paramiko` (already in `pyproject.toml`)
+- Dependencies (from this repo): `fastapi`
 - Runtime server: `uvicorn`
 
 Python 3.11 venv (recommended)
@@ -26,7 +26,7 @@ Python 3.11 venv (recommended)
 ```bash
 python3.11 -m venv .venv311
 source .venv311/bin/activate
-pip install "uvicorn[standard]" fastapi paramiko requests
+pip install "uvicorn[standard]" fastapi requests
 ```
 
 Quick Start (Local)
@@ -43,27 +43,25 @@ export LAZ_DIRECTORY=/mnt/raid0/testingexclude/out
 export GPKG_ATLAS_PATH=/mnt/raid0/testing_by/tiles_atlas.json
 export GPKG_DATA_DIRECTORY=/mnt/raid0/testing_by/tiled_data
 
-python src/server-lidar-gpkg-ssh-merged.py
+python src/server-lidar-gpkg-merged-github-auth.py
 ```
 
 Option B — run via uvicorn module path (ensure `PYTHONPATH=src` so the module can be imported):
 
 ```bash
 export PYTHONPATH=src
-uvicorn server-lidar-gpkg-ssh-merged:app --host 0.0.0.0 --port 8001
+uvicorn server-lidar-gpkg-merged-github-auth:app --host 0.0.0.0 --port 8001
 ```
 
 macOS note: If you see multiprocessing errors with the rate limiter, disable it locally:
 
 ```bash
-ENABLE_RATE_LIMIT=false ENABLE_AUTH=true PORT=8001 python3.11 src/server-lidar-gpkg-ssh-merged.py
+ENABLE_RATE_LIMIT=false ENABLE_AUTH=true PORT=8001 python3.11 src/server-lidar-gpkg-merged-github-auth.py
 ```
 
 Configuration (Environment Variables)
 -------------------------------------
 
-- `SSH_HOST` (default: `data2.dtcc.chalmers.se`)
-- `SSH_PORT` (default: `22`)
 - `PORT` (default: `8001`) — only used when running the script directly
 - `ENABLE_AUTH` (default: `true`) — set to `false` to bypass auth (token becomes `anonymous`)
 - `ENABLE_RATE_LIMIT` (default: `true`) — set to `false` to disable rate limiting middleware
@@ -76,16 +74,8 @@ Configuration (Environment Variables)
 - `GITHUB_API_URL` (default: `https://api.github.com`)
 - `GITHUB_REPO` (default: `dtcc-platform/dtcc-auth`) — repo checked for write access in GitHub auth
 
-Authentication Flow
--------------------
-
-1. Request a token with SSH credentials:
-   - `POST /auth/token` with JSON `{"username":"<ssh-user>","password":"<ssh-pass>"}`
-   - On success, returns `{ "token": "..." }` valid for `TOKEN_TTL_SECONDS` seconds.
-2. Send `Authorization: Bearer <token>` header with subsequent requests.
-
-Alternative: GitHub-based authorization (with optional server token)
--------------------------------------------------------------------
+Authentication (GitHub)
+-----------------------
 
 Validate a GitHub token has at least write access to the configured repo (`GITHUB_REPO`, defaults to `dtcc-platform/dtcc-auth`). Optionally, ask the server to issue its own Bearer token for use with protected endpoints.
 
@@ -301,15 +291,6 @@ If `ACCESS_GITHUB_TOKEN` is configured with permissions to create issues on `GIT
 curl Examples
 -------------
 
-Get a token (auth enabled):
-
-```bash
-curl -sS -X POST http://localhost:8001/auth/token \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"myuser","password":"mypassword"}'
-# {"token":"<TOKEN>"}
-```
-
 LiDAR — find intersecting tiles (buffer in meters/units):
 
 ```bash
@@ -381,7 +362,7 @@ After=network.target
 Type=simple
 EnvironmentFile=/etc/dtcc-data.env
 WorkingDirectory=/opt/dtcc-data
-ExecStart=/usr/bin/python3 /opt/dtcc-data/src/server-lidar-gpkg-ssh-merged.py
+ExecStart=/usr/bin/python3 /opt/dtcc-data/src/server-lidar-gpkg-merged-github-auth.py
 Restart=always
 RestartSec=5
 

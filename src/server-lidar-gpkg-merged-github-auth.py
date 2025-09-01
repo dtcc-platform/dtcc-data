@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Unified FastAPI server for LiDAR (.laz) and GPKG tiles with SSH-backed auth.
+Unified FastAPI server for LiDAR (.laz) and GPKG tiles with GitHub-based auth.
 
 Key features:
-- Token auth via SSH credential check (Paramiko).
+- GitHub-based authorization to issue server tokens.
 - Optional rate limiting middleware (configurable via env).
 - Endpoints for LiDAR tile discovery + file serving.
 - Endpoints for GPKG tile discovery + file serving.
@@ -19,9 +19,9 @@ New explicit routes:
 - GPKG:  POST /gpkg/tiles,  GET /files/gpkg/{filename}
 
 Environment variables (optional):
-- SSH_HOST, SSH_PORT
 - PORT (server port)
 - RATE_REQ_LIMIT, RATE_TIME_WINDOW, RATE_GLOBAL_LIMIT
+- ENABLE_RATE_LIMIT (true/false)
 - ENABLE_AUTH (true/false)
 - TOKEN_TTL_SECONDS (e.g., 3600)
 - LIDAR_ATLAS_PATH, LAZ_DIRECTORY
@@ -40,7 +40,6 @@ import requests
 from datetime import datetime, timezone
 import re
 import threading
-import paramiko
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -64,8 +63,6 @@ def getenv_int(name: str, default: int) -> int:
         return default
 
 
-SSH_HOST = os.getenv("SSH_HOST", "data2.dtcc.chalmers.se")
-SSH_PORT = getenv_int("SSH_PORT", 22)
 PORT = getenv_int("PORT", 8001)
 
 RATE_REQ_LIMIT = getenv_int("RATE_REQ_LIMIT", 5)
@@ -104,11 +101,6 @@ ACCESS_REQ_MAX_BODY_BYTES = getenv_int("ACCESS_REQ_MAX_BODY_BYTES", 2048)
 # ----------------------------
 # Models
 # ----------------------------
-class AuthCredentials(BaseModel):
-    username: str
-    password: str
-
-
 class LidarRequest(BaseModel):
     xmin: int
     ymin: int
@@ -255,27 +247,6 @@ def _valid_github_username(s: str) -> bool:
 
 
 # ----------------------------
-# SSH auth and token handling
-# ----------------------------
-def ssh_authenticate(username: str, password: str) -> bool:
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh_client.connect(
-            hostname=SSH_HOST,
-            port=SSH_PORT,
-            username=username,
-            password=password,
-            timeout=5,
-        )
-        ssh_client.close()
-        return True
-    except paramiko.AuthenticationException:
-        return False
-    except Exception:
-        return False
-
-
 # token -> expiry_epoch, username
 _TOKENS: Dict[str, tuple[float, str]] = {}
 
@@ -302,16 +273,12 @@ def validate_token(token: str) -> bool:
     return True
 
 
-def get_token_user(token: str) -> Optional[str]:
-    info = _TOKENS.get(token)
-    return info[1] if info else None
-
 
 def make_auth_middleware() -> Callable:
     async def auth_middleware(request: Request, call_next):
         # allow unauthenticated paths
         unprotected = {
-            "/", "/auth/token", "/auth/github", "/access/request", "/healthz", "/docs", "/openapi.json", "/redoc",
+            "/", "/auth/github", "/access/request", "/healthz", "/docs", "/openapi.json", "/redoc",
         }
         if request.url.path in unprotected or not ENABLE_AUTH:
             return await call_next(request)
@@ -361,17 +328,6 @@ def create_app() -> FastAPI:
     @app.get("/")
     def read_root() -> Dict[str, str]:
         return {"message": "DTCC Unified LiDAR+GPKG Server"}
-
-    # Auth: exchange SSH creds for token
-    @app.post("/auth/token")
-    def create_token(creds: AuthCredentials) -> Dict[str, str]:
-        if not ENABLE_AUTH:
-            # When disabled, return a constant pseudo-token for local use
-            return {"token": "anonymous"}
-        if ssh_authenticate(creds.username, creds.password):
-            token = issue_token(creds.username)
-            return {"token": token}
-        raise HTTPException(status_code=401, detail="SSH authentication failed")
 
     # --------- Secondary auth via GitHub repo permission (>= write) ---------
     def _github_headers(token: str) -> Dict[str, str]:
