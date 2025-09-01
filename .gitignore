@@ -11,3 +11,5 @@ src/nohup.out
 *.so
 *.o
 *.a
+*/.venv*/
+.venv/*

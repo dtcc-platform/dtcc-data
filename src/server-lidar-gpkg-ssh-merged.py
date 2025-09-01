@@ -73,6 +73,7 @@ PORT = getenv_int("PORT", 8001)
 RATE_REQ_LIMIT = getenv_int("RATE_REQ_LIMIT", 5)
 RATE_TIME_WINDOW = getenv_int("RATE_TIME_WINDOW", 30)
 RATE_GLOBAL_LIMIT = getenv_int("RATE_GLOBAL_LIMIT", 20)
+ENABLE_RATE_LIMIT = os.getenv("ENABLE_RATE_LIMIT", "true").lower() in {"1", "true", "yes", "on"}
 
 ENABLE_AUTH = os.getenv("ENABLE_AUTH", "true").lower() in {"1", "true", "yes", "on"}
 TOKEN_TTL_SECONDS = getenv_int("TOKEN_TTL_SECONDS", 3600)
@@ -135,6 +136,11 @@ class AccessRequest(BaseModel):
     surname: str
     email: str
     github_username: str
+
+
+class GitHubAuthRequest(BaseModel):
+    token: Optional[str] = None
+    issue_token: bool = False
 
 
 # ----------------------------
@@ -321,7 +327,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="DTCC Unified LiDAR+GPKG Server")
 
     # Rate limiter (optional if util exists)
-    if create_rate_limit_middleware is not None:
+    if create_rate_limit_middleware is not None and ENABLE_RATE_LIMIT:
         rate_limit_middleware = create_rate_limit_middleware(
             request_limit=RATE_REQ_LIMIT,
             time_window=RATE_TIME_WINDOW,
@@ -354,10 +360,6 @@ def create_app() -> FastAPI:
         raise HTTPException(status_code=401, detail="SSH authentication failed")
 
     # --------- Secondary auth via GitHub repo permission (>= write) ---------
-    class GitHubAuthRequest(BaseModel):
-        token: Optional[str] = None
-        issue_token: bool = False
-
     def _github_headers(token: str) -> Dict[str, str]:
         return {
             "Authorization": f"token {token}",

@@ -57,6 +57,7 @@ Configuration (Environment Variables)
 - `SSH_PORT` (default: `22`)
 - `PORT` (default: `8001`) — only used when running the script directly
 - `ENABLE_AUTH` (default: `true`) — set to `false` to bypass auth (token becomes `anonymous`)
+- `ENABLE_RATE_LIMIT` (default: `true`) — set to `false` to disable rate limiting middleware
 - `TOKEN_TTL_SECONDS` (default: `3600`)
 - `RATE_REQ_LIMIT` (default: `5`), `RATE_TIME_WINDOW` (default: `30`), `RATE_GLOBAL_LIMIT` (default: `20`)
 - `LIDAR_ATLAS_PATH` (default: `/mnt/raid0/testingexclude/out/atlas.json`)
