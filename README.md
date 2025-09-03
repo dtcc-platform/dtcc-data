@@ -15,6 +15,15 @@ This project is documented as part of the
 
 For the merged data server deployment and usage, see `README-server.md`.
 
+## Datasets and Modular Atlas
+
+You can serve multiple GeoPackage datasets (each with its own tiles and atlas) using the dataset-aware workflow:
+
+- Create/register a dataset: run `src/create-atlas-gpkg-modular.py <dataset>` to build tiles and update `src/dtcc_data/gpkg_datasets.json`.
+- Run the server and query dataset endpoints (documented in `README-server.md`).
+- Client wrappers include `download_footprints_dataset(...)` under `dtcc_data.wrapper`.
+
+
 ## Authors (in order of appearance)
 
 * [Dag Wästerberg](https://chalmersindustriteknik.se/sv/medarbetare/dag-wastberg/)
