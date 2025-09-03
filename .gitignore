@@ -14,3 +14,4 @@ src/nohup.out
 */.venv*/
 .venv/*
 *.jsonl
+tiled_data

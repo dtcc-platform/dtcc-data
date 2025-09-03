@@ -1,1 +1,6 @@
-{}
+{
+  "mark_sverige": {
+    "atlas_path": "/scratch/auth-themis1223/dtcc-data/src/tiled_data/mark_sverige/tiles_atlas.json",
+    "data_directory": "/scratch/auth-themis1223/dtcc-data/src/tiled_data/mark_sverige"
+  }
+}

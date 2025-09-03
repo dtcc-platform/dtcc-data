@@ -202,22 +202,34 @@ async def download_gpkg_file_dataset(session, base_url, dataset: str, filename: 
             warning(f"Failed to download {filename}, status code={resp.status}")
 
 
-async def download_all_gpkg_files_dataset(base_url, dataset: str, filenames, output_dir="downloaded_gpkg"):
-    async with aiohttp.ClientSession() as session:
+async def download_all_gpkg_files_dataset(base_url, dataset: str, filenames, auth_headers, output_dir="downloaded_gpkg"):
+    """
+    Given a list of filenames, downloads them all asynchronously from
+    base_url/get/gpkg/<dataset>/<filename> using aiohttp, skipping any local cache hits.
+    """
+    connector = aiohttp.TCPConnector()
+    headers = auth_headers
+    async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
         tasks = [download_gpkg_file_dataset(session, base_url, dataset, fname, output_dir) for fname in filenames]
         await asyncio.gather(*tasks)
 
 
-def run_download_files_dataset(base_url, dataset: str, filenames, output_dir="downloaded_gpkg"):
+def run_download_files_dataset(base_url, dataset: str, filenames, auth_headers, output_dir="downloaded_gpkg"):
+    """
+    Entry point to run the async download with asyncio, skipping already cached files.
+    """
     if not filenames:
         info("No files to download.")
         return
     debug(f"Downloading {len(filenames)} files for dataset {dataset} in parallel (with cache check)...")
-    asyncio.run(download_all_gpkg_files_dataset(base_url, dataset, filenames, output_dir))
+    asyncio.run(download_all_gpkg_files_dataset(base_url, dataset, filenames, auth_headers, output_dir))
     info("All downloads finished.")
 
 
 def download_tiles_dataset(user_bbox, session, dataset: str, server_url=DEFAULT_SERVER_URL):
+    """
+    Dataset-aware version of download_tiles with authentication support.
+    """
     try:
         response_data = post_gpkg_request_dataset(
             server_url, session, dataset,
@@ -228,7 +240,9 @@ def download_tiles_dataset(user_bbox, session, dataset: str, server_url=DEFAULT_
         return
     returned_tiles = response_data["tiles"]
     output_dir = os.path.join(CACHE_DIR, f'downloaded-gpkg-{dataset}')
-    run_download_files_dataset(server_url, dataset, returned_tiles, output_dir=output_dir)
+    # Extract auth headers from session (same as in download_tiles)
+    auth_headers = dict(session.headers)
+    run_download_files_dataset(server_url, dataset, returned_tiles, auth_headers, output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
 

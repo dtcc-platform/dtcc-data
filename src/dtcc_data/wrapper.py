@@ -103,7 +103,7 @@ def download_roadnetwork(bounds: Bounds, provider = 'dtcc', epsg='3006'):
         error("Please enter a valid provider")
 
 
-def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc', epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
+def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc', epsg = '3006', url = 'http://127.0.0.1:8002'):
     if isinstance(bounds,(tuple | list)):
         bounds = Bounds(xmin=bounds[0],ymin=bounds[1],xmax=bounds[2],ymax=bounds[3])
     if not isinstance(bounds,Bounds):
@@ -114,9 +114,9 @@ def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc',
     if provider.lower() != 'dtcc':
         error("Only 'dtcc' provider supported for dataset-aware footprints")
         return
-    session = requests.Session()
+    session = create_authenticated_session()
     info(f"Starting footprints download for dataset '{dataset}' from dtcc source")
-    files = download_tiles_dataset(bounds.tuple, session, dataset=dataset, server_url=f"{url}:8001")
+    files = download_tiles_dataset(bounds.tuple, session, dataset=dataset, server_url=f"{url}")
     if not files:
         return None
     foots = io.load_footprints(files, bounds=bounds)
