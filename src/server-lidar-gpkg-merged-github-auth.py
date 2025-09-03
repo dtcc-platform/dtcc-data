@@ -80,6 +80,7 @@ LAZ_DIRECTORY = os.getenv("LAZ_DIRECTORY", "/mnt/raid0/testingexclude/out")
 # GPKG
 GPKG_ATLAS_PATH = os.getenv("GPKG_ATLAS_PATH", "/mnt/raid0/testing_by/tiles_atlas.json")
 GPKG_DATA_DIRECTORY = os.getenv("GPKG_DATA_DIRECTORY", "/mnt/raid0/testing_by/tiled_data")
+GPKG_DATASETS_CONFIG = os.getenv("GPKG_DATASETS_CONFIG", "src/dtcc_data/gpkg_datasets.json")
 
 # GitHub auth configuration
 GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://api.github.com")
@@ -574,6 +575,17 @@ def create_app() -> FastAPI:
         with open(GPKG_ATLAS_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    def load_datasets_config() -> dict:
+        path = GPKG_DATASETS_CONFIG
+        if not path or not os.path.exists(path):
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
     @app.post("/tiles")
     @app.post("/gpkg/tiles")
     def get_gpkg_tiles(req: BBoxRequest) -> Dict[str, Any]:
@@ -601,6 +613,51 @@ def create_app() -> FastAPI:
     @app.get("/files/gpkg/{filename}")
     def get_gpkg_file(filename: str):
         gpkg_path = safe_join(GPKG_DATA_DIRECTORY, filename)
+        if not os.path.exists(gpkg_path):
+            raise HTTPException(status_code=404, detail=f"GPKG file not found: {filename}")
+        return FileResponse(path=gpkg_path, media_type="application/octet-stream", filename=filename)
+
+    # Dataset-aware endpoints using a datasets config JSON
+    @app.post("/gpkg/{dataset}/tiles")
+    def get_gpkg_tiles_dataset(dataset: str, req: BBoxRequest) -> Dict[str, Any]:
+        ensure_valid_bbox(req.minx, req.miny, req.maxx, req.maxy)
+        cfg = load_datasets_config().get(dataset)
+        if not cfg:
+            raise HTTPException(status_code=404, detail=f"Unknown dataset: {dataset}")
+        atlas_path = cfg.get("atlas_path")
+        if not atlas_path or not os.path.exists(atlas_path):
+            raise HTTPException(status_code=500, detail="Dataset atlas not found on server")
+        try:
+            with open(atlas_path, "r", encoding="utf-8") as f:
+                atlas_data = json.load(f)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to read dataset atlas")
+        matched_files: list[str] = []
+        for _k, info in atlas_data.items():
+            try:
+                xmin = float(info["minx"])
+                ymin = float(info["miny"])
+                xmax = float(info["maxx"])
+                ymax = float(info["maxy"])
+                fname = str(info["filename"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if bboxes_intersect(xmin, ymin, xmax, ymax, req.minx, req.miny, req.maxx, req.maxy):
+                matched_files.append(fname)
+        if not matched_files:
+            raise HTTPException(status_code=404, detail="No tiles intersect the requested bounding box")
+        return {"message": "Success", "num_tiles": len(matched_files), "tiles": matched_files}
+
+    @app.get("/get/gpkg/{dataset}/{filename}")
+    @app.get("/files/gpkg/{dataset}/{filename}")
+    def get_gpkg_file_dataset(dataset: str, filename: str):
+        cfg = load_datasets_config().get(dataset)
+        if not cfg:
+            raise HTTPException(status_code=404, detail=f"Unknown dataset: {dataset}")
+        data_dir = cfg.get("data_directory")
+        if not data_dir:
+            raise HTTPException(status_code=500, detail="Dataset directory not configured")
+        gpkg_path = safe_join(data_dir, filename)
         if not os.path.exists(gpkg_path):
             raise HTTPException(status_code=404, detail=f"GPKG file not found: {filename}")
         return FileResponse(path=gpkg_path, media_type="application/octet-stream", filename=filename)

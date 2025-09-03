@@ -4,6 +4,7 @@ import requests
 import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
+from dtcc_data.geopkg import download_tiles_dataset
 from dtcc_data.lidar import download_lidar
 from dtcc_core import io
 from dtcc_core.model import Bounds
@@ -164,3 +165,23 @@ def download_roadnetwork(bounds: Bounds, provider = 'dtcc', epsg='3006'):
         download_data('roads', "OSM", bounds, epsg=epsg)
     else:
         error("Please enter a valid provider")
+
+
+def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc', epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
+    if isinstance(bounds,(tuple | list)):
+        bounds = Bounds(xmin=bounds[0],ymin=bounds[1],xmax=bounds[2],ymax=bounds[3])
+    if not isinstance(bounds,Bounds):
+        raise TypeError("bounds must be of dtcc.Bounds type.")
+    if epsg != '3006':
+        warning('Please enter the coordinates in EPSG:3006')
+        return
+    if provider.lower() != 'dtcc':
+        error("Only 'dtcc' provider supported for dataset-aware footprints")
+        return
+    session = requests.Session()
+    info(f"Starting footprints download for dataset '{dataset}' from dtcc source")
+    files = download_tiles_dataset(bounds.tuple, session, dataset=dataset, server_url=f"{url}:8001")
+    if not files:
+        return None
+    foots = io.load_footprints(files, bounds=bounds)
+    return foots
