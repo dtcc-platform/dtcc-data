@@ -359,6 +359,47 @@ curl -fSL -H "Authorization: Bearer $TOKEN" \
   http://localhost:8001/get/gpkg/$FILENAME -o "$FILENAME"
 ```
 
+Datasets (Multiple GPKG Atlases)
+--------------------------------
+
+You can serve multiple GPKG atlases by dataset name using a dataset mapping file. The server reads `GPKG_DATASETS_CONFIG` (default: `src/dtcc_data/gpkg_datasets.json`) which maps dataset keys to their atlas and data directory.
+
+- Config file (JSON): `src/dtcc_data/gpkg_datasets.json` (included, initially `{}`)
+- Entry format:
+
+```
+{
+  "mydataset": {
+    "atlas_path": "/opt/dtcc-data/tiled_data/mydataset/tiles_atlas.json",
+    "data_directory": "/opt/dtcc-data/tiled_data/mydataset"
+  }
+}
+```
+
+- Create and register a dataset with the modular script:
+
+```bash
+python src/create-atlas-gpkg-modular.py mydataset   --root-dir /data/gpkgs   --target-filename mydataset.gpkg   --output-dir tiled_data/mydataset   --config-path src/dtcc_data/gpkg_datasets.json
+```
+
+- Query tiles for a dataset:
+
+```bash
+curl -sS -X POST http://localhost:8001/gpkg/mydataset/tiles   -H "Authorization: Bearer $TOKEN"   -H 'Content-Type: application/json'   -d '{"minx":268234.462,"miny":6473567.915,"maxx":278234.462,"maxy":6483567.915}'
+```
+
+- Download a file for a dataset:
+
+```bash
+FILENAME=tile.gpkg
+curl -fSL -H "Authorization: Bearer $TOKEN"   http://localhost:8001/files/gpkg/mydataset/$FILENAME -o "$FILENAME"
+```
+
+Environment variable:
+
+- `GPKG_DATASETS_CONFIG` (default: `src/dtcc_data/gpkg_datasets.json`)
+
+
 Deployment (systemd example)
 ----------------------------
 
