@@ -288,6 +288,28 @@ If `ACCESS_GITHUB_TOKEN` is configured with permissions to create issues on `GIT
 }
 ```
 
+Note: The provided `github_username` must correspond to an existing GitHub user. If the user does not exist, the server returns HTTP 400 and does not store the request.
+
+Duplicate protection: The same GitHub user cannot open a second request. If a request already exists (locally recorded or an open issue is found), the server returns HTTP 409.
+
+Error examples:
+
+```bash
+# User does not exist
+curl -i -sS -X POST "$BASE/access/request" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"N","surname":"S","email":"n@example.org","github_username":"no-such-user-xyz"}'
+# HTTP/1.1 400 ...
+# {"detail":"GitHub user not found: no-such-user-xyz"}
+
+# Duplicate request
+curl -i -sS -X POST "$BASE/access/request" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ada","surname":"Lovelace","email":"ada@example.org","github_username":"ada-l"}'
+# HTTP/1.1 409 ...
+# {"detail":"Access request already exists for GitHub user: ada-l"}
+```
+
 curl Examples
 -------------
 

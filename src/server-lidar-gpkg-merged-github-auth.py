@@ -168,6 +168,75 @@ def append_access_request(rec: Dict[str, Any]) -> str:
     return file_path
 
 
+def github_user_exists(username: str) -> bool:
+    if not username:
+        return False
+    url = f"{GITHUB_API_URL.rstrip('/')}/users/{username}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "dtcc-data-server",
+    }
+    if ACCESS_GITHUB_TOKEN:
+        headers["Authorization"] = f"token {ACCESS_GITHUB_TOKEN}"
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def has_local_request(username: str) -> bool:
+    try:
+        directory = ensure_dir(ACCESS_REQUESTS_DIR)
+        file_path = os.path.join(directory, "requests.jsonl")
+        if not os.path.exists(file_path):
+            return False
+        uname = username.strip().lower()
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                gh = str(rec.get("github_username", "")).strip().lower()
+                if gh and gh == uname:
+                    return True
+        return False
+    except Exception:
+        return False
+
+
+def has_open_access_issue(username: str) -> bool:
+    if not ACCESS_GITHUB_TOKEN:
+        return False
+    owner_repo = GITHUB_REPO
+    labels_csv = ",".join(ACCESS_GITHUB_LABELS) if ACCESS_GITHUB_LABELS else None
+    url = f"{GITHUB_API_URL.rstrip('/')}/repos/{owner_repo}/issues?state=open&per_page=100"
+    if labels_csv:
+        url += f"&labels={requests.utils.quote(labels_csv)}"
+    headers = {
+        "Authorization": f"token {ACCESS_GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "dtcc-data-server",
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return False
+        items = resp.json() if resp.content else []
+        uname = username.strip().lower()
+        for it in items:
+            title = str(it.get("title", "")).lower()
+            body = str(it.get("body", "")).lower()
+            if f"({uname})" in title or f"github: {uname}" in body or uname in title:
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def create_github_access_issue(rec: Dict[str, Any]) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "created": False,
@@ -181,6 +250,27 @@ def create_github_access_issue(rec: Dict[str, Any]) -> Dict[str, Any]:
         return result
 
     owner_repo = GITHUB_REPO
+    # Extra protection: ensure GitHub user exists before creating issue
+    gh_user = str(rec.get("github_username", "")).strip()
+    if not gh_user:
+        result["error"] = "missing github_username"
+        return result
+    user_url = f"{GITHUB_API_URL.rstrip('/')}/users/{gh_user}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "dtcc-data-server",
+    }
+    try:
+        check = requests.get(user_url, headers=headers, timeout=10)
+        if check.status_code != 200:
+            result["error"] = "github user not found"
+            return result
+    except Exception as e:
+        result["error"] = f"user check failed: {e}"
+        return result
+
     url = f"{GITHUB_API_URL.rstrip('/')}/repos/{owner_repo}/issues"
     title = f"Access request: {rec.get('name','')} {rec.get('surname','')} ({rec.get('github_username','')})"
     body_lines = [
@@ -196,12 +286,6 @@ def create_github_access_issue(rec: Dict[str, Any]) -> Dict[str, Any]:
         "title": title,
         "body": "\n".join(body_lines),
         "labels": ACCESS_GITHUB_LABELS,
-    }
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "dtcc-data-server",
     }
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
@@ -584,6 +668,14 @@ def create_app() -> FastAPI:
             "remote_addr": client_ip,
             "user_agent": request.headers.get("User-Agent", ""),
         }
+
+        # Require that GitHub user exists
+        if not github_user_exists(gh):
+            raise HTTPException(status_code=400, detail=f"GitHub user not found: {gh}")
+
+        # Prevent duplicate requests for same GitHub username
+        if has_open_access_issue(gh) or has_local_request(gh):
+            raise HTTPException(status_code=409, detail=f"Access request already exists for GitHub user: {gh}")
 
         try:
             file_path = append_access_request(record)
