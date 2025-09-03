@@ -6,7 +6,7 @@ import json
 import aiohttp
 import requests
 from platformdirs import user_cache_dir
-from .logging import info, warning, debug, error
+from .dtcc_logging import info, warning, debug, error
 
 CACHE_DIR = user_cache_dir(appname="dtcc-data")
 os.makedirs(CACHE_DIR,exist_ok=True)
@@ -118,20 +118,21 @@ async def download_gpkg_file(session, base_url, filename, output_dir):
         else:
             warning(f"Failed to download {filename}, status code={resp.status}")
 
-async def download_all_gpkg_files(base_url, filenames, output_dir="downloaded_gpkg"):
+async def download_all_gpkg_files(base_url, filenames, auth_headers, output_dir="downloaded_gpkg"):
     """
     Given a list of filenames, downloads them all asynchronously from
     base_url/get/lidar/<filename> using aiohttp, skipping any local cache hits.
     """
-        
-    async with aiohttp.ClientSession() as session:
+    connector = aiohttp.TCPConnector()
+    headers = auth_headers
+    async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
         tasks = []
         for fname in filenames:
             tasks.append(download_gpkg_file(session, base_url, fname, output_dir))
         # Run all downloads concurrently
         await asyncio.gather(*tasks)
 
-def run_download_files(base_url, filenames, output_dir="downloaded_gpkg"):
+def run_download_files(base_url, filenames, auth_headers, output_dir="downloaded_gpkg"):
     """
     Entry point to run the async download with asyncio, skipping already cached files.
     """
@@ -139,7 +140,7 @@ def run_download_files(base_url, filenames, output_dir="downloaded_gpkg"):
         info("No files to download.")
         return
     debug(f"Downloading {len(filenames)} files in parallel (with cache check)...")
-    asyncio.run(download_all_gpkg_files(base_url, filenames, output_dir))
+    asyncio.run(download_all_gpkg_files(base_url, filenames, auth_headers, output_dir))
     info("All downloads finished.")
 
 def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
@@ -167,7 +168,8 @@ def download_tiles(user_bbox, session, server_url=DEFAULT_SERVER_URL):
     output_dir = os.path.join(CACHE_DIR,'downloaded-gpkg')
     # D) Download files in parallel (with local cache)
     # filenames_to_download = [tile["filename"] for tile in returned_tiles]
-    run_download_files(server_url, returned_tiles, output_dir=output_dir)
+    auth_headers = dict(session.headers)
+    run_download_files(server_url, returned_tiles, auth_headers, output_dir=output_dir)
     return [os.path.join(output_dir, filename) for filename in returned_tiles]
 
 

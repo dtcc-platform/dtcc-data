@@ -65,7 +65,7 @@ def getenv_int(name: str, default: int) -> int:
 
 PORT = getenv_int("PORT", 8001)
 
-RATE_REQ_LIMIT = getenv_int("RATE_REQ_LIMIT", 5)
+RATE_REQ_LIMIT = getenv_int("RATE_REQ_LIMIT", 20)
 RATE_TIME_WINDOW = getenv_int("RATE_TIME_WINDOW", 30)
 RATE_GLOBAL_LIMIT = getenv_int("RATE_GLOBAL_LIMIT", 20)
 ENABLE_RATE_LIMIT = os.getenv("ENABLE_RATE_LIMIT", "true").lower() in {"1", "true", "yes", "on"}
@@ -476,7 +476,7 @@ def create_app() -> FastAPI:
         perm = _perm_label(repo.get("permissions", {}))
         # Require at least write
         level_order = {"read": 1, "triage": 2, "write": 3, "maintain": 4, "admin": 5}
-        if level_order.get(perm or "", 0) >= level_order["write"]:
+        if level_order.get(perm or "", 0) >= level_order["read"]:
             if body.issue_token:
                 login = me.get("login") or me.get("name") or f"github:{me.get('id','unknown')}"
                 tok = issue_token(str(login))
