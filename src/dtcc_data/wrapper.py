@@ -10,9 +10,12 @@ from dtcc_core import io
 from dtcc_core.model import Bounds
 from .dtcc_logging import info, warning, debug, error
 from .auth import create_authenticated_session
+import os
 # We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
 valid_types = ["lidar", "roads", "footprints"]
 valid_providers = ["dtcc", "OSM"]
+
+BASE_URL = os.getenv("BASE_URL",'http://127.0.0.1:8002')
 
 # We'll keep a single global SSH client in memory
 SSH_CLIENT = None
@@ -20,7 +23,7 @@ SSH_CREDS = {
     "username": None,
     "password": None
 }
-def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', url = 'http://127.0.0.1'):
+def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', url = BASE_URL):
     """
     A wrapper for downloading data, but with a dummy step for actual file transfer.
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
@@ -54,13 +57,13 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
             return
         if data_type == 'lidar':
             info('Starting the Lidar files download from dtcc source')
-            files = download_lidar(bounds.tuple, session, base_url=f'{url}:8002')
+            files = download_lidar(bounds.tuple, session, base_url=f'{url}')
             debug(files)
             pc = io.load_pointcloud(files,bounds=bounds)
             return pc
         elif data_type == 'footprints':
             info("Starting the footprints download from dtcc source")
-            files = download_tiles(bounds.tuple, session, server_url=f"{url}:8002")
+            files = download_tiles(bounds.tuple, session, server_url=f"{url}")
             foots = io.load_footprints(files,bounds= bounds)
             return foots 
         else:
@@ -103,7 +106,7 @@ def download_roadnetwork(bounds: Bounds, provider = 'dtcc', epsg='3006'):
         error("Please enter a valid provider")
 
 
-def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc', epsg = '3006', url = 'http://127.0.0.1:8002'):
+def download_footprints_dataset(bounds: Bounds, dataset: str, provider = 'dtcc', epsg = '3006', url = BASE_URL):
     if isinstance(bounds,(tuple | list)):
         bounds = Bounds(xmin=bounds[0],ymin=bounds[1],xmax=bounds[2],ymax=bounds[3])
     if not isinstance(bounds,Bounds):
