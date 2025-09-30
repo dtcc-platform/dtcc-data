@@ -2,7 +2,7 @@ import os
 import tempfile
 import asyncio
 import pytest
-from dtcc_data import lidar
+from dtcc_data import lidaras
 
 # Dummy response class for simulating requests.post in post_lidar_request.
 class DummyResp:
