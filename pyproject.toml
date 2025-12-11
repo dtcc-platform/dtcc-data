@@ -20,7 +20,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "dtcc-core@git+https://github.com/dtcc-platform/dtcc-core.git@develop", 
+  "dtcc-core@git+https://github.com/dtcc-platform/dtcc-core.git@release/0.9.4", 
   "aiohttp==3.11.11",
   "fastapi==0.115.6",
   "folium==0.19.2",
