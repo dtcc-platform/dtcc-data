@@ -80,5 +80,5 @@ def test_download_footprints(monkeypatch):
 def test_download_roadnetwork_invalid():
     # When no valid provider is given, download_roadnetwork should call error,
     # which exits the process (raising SystemExit).
-    with pytest.raises(SystemExit):
+    with pytest.raises(RuntimeError):
         wrapper.download_roadnetwork(Bounds(xmin=0, ymin=0, xmax=10, ymax=10))
