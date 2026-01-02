@@ -3,6 +3,8 @@
 import os
 import json
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pyproj
 import geopandas as gpd
 from shapely.geometry import box, Polygon, LineString
@@ -20,6 +22,36 @@ os.makedirs(CACHE_DIR,exist_ok=True)
 CACHE_METADATA_FILE = os.path.join(BASE_CACHE_DIR,"cache_metadata.json")
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+
+def create_retry_session(
+    retries=5,
+    backoff_factor=1.0,
+    status_forcelist=(429, 500, 502, 503, 504),
+):
+    """
+    Create a requests session with automatic retry and exponential backoff.
+
+    Args:
+        retries: Total number of retry attempts
+        backoff_factor: Multiplier for exponential backoff (1.0 = 1s, 2s, 4s, 8s, 16s)
+        status_forcelist: HTTP status codes that trigger a retry
+    """
+    session = requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        allowed_methods=["GET", "POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
 
 # ------------------------------------------------------------------------
 # 2) Utilities for bounding boxes
@@ -92,8 +124,11 @@ def download_overpass_buildings(bbox_3006):
     out body;
     """
     info(f"Querying Overpass for buildings in bbox={bbox_3006}")
-    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
-    resp.raise_for_status()
+    session = create_retry_session()
+    resp = session.post(OVERPASS_URL, data={"data": query}, timeout=60)
+    if resp.status_code != 200:
+        error(f"Overpass API returned status {resp.status_code} after retries")
+        resp.raise_for_status()
     data = resp.json()
 
     # Parse
@@ -150,8 +185,11 @@ def download_overpass_roads(bbox_3006):
     out body;
     """
     info(f"Querying Overpass for roads in bbox={bbox_3006}")
-    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=60)
-    resp.raise_for_status()
+    session = create_retry_session()
+    resp = session.post(OVERPASS_URL, data={"data": query}, timeout=60)
+    if resp.status_code != 200:
+        error(f"Overpass API returned status {resp.status_code} after retries")
+        resp.raise_for_status()
     data = resp.json()
 
     # Parse
