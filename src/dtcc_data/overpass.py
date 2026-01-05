@@ -21,7 +21,11 @@ os.makedirs(CACHE_DIR,exist_ok=True)
 # Where we store local cache metadata
 CACHE_METADATA_FILE = os.path.join(BASE_CACHE_DIR,"cache_metadata.json")
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    # "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
 
 
 def create_retry_session(
@@ -51,6 +55,40 @@ def create_retry_session(
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
+
+
+def query_overpass_with_failover(query, timeout=60):
+    """
+    Query Overpass API with automatic failover between endpoints.
+    Tries each endpoint with retries before moving to the next.
+
+    Args:
+        query: The Overpass QL query string
+        timeout: Request timeout in seconds
+
+    Returns:
+        Parsed JSON response from the API
+
+    Raises:
+        RuntimeError: If all endpoints fail
+    """
+    last_error = None
+    for endpoint in OVERPASS_ENDPOINTS:
+        try:
+            session = create_retry_session()
+            resp = session.post(endpoint, data={"data": query}, timeout=timeout)
+            if resp.status_code == 200:
+                debug(f"Overpass query successful via {endpoint}")
+                return resp.json()
+            else:
+                warning(f"Endpoint {endpoint} returned status {resp.status_code}")
+                last_error = f"HTTP {resp.status_code}"
+        except requests.exceptions.RequestException as e:
+            warning(f"Endpoint {endpoint} failed: {e}")
+            last_error = str(e)
+
+    error(f"All Overpass endpoints failed. Last error: {last_error}")
+    raise RuntimeError(f"All Overpass endpoints failed: {last_error}")
 
 
 # ------------------------------------------------------------------------
@@ -92,6 +130,20 @@ def save_cache_metadata(records, meta_path=CACHE_METADATA_FILE):
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2)
 
+def to_relative_path(filepath):
+    """Convert absolute path to relative path from BASE_CACHE_DIR."""
+    if os.path.isabs(filepath) and filepath.startswith(BASE_CACHE_DIR):
+        return os.path.relpath(filepath, BASE_CACHE_DIR)
+    return filepath
+
+def to_absolute_path(filepath):
+    """Convert relative path to absolute path using BASE_CACHE_DIR.
+    Handles both relative and already-absolute paths for backward compatibility.
+    """
+    if os.path.isabs(filepath):
+        return filepath  # Already absolute (legacy format)
+    return os.path.join(BASE_CACHE_DIR, filepath)
+
 def find_superset_record(bbox_3006, records):
     """
     Look for a record in 'records' whose bounding box is a superset of bbox_3006.
@@ -124,12 +176,7 @@ def download_overpass_buildings(bbox_3006):
     out body;
     """
     info(f"Querying Overpass for buildings in bbox={bbox_3006}")
-    session = create_retry_session()
-    resp = session.post(OVERPASS_URL, data={"data": query}, timeout=60)
-    if resp.status_code != 200:
-        error(f"Overpass API returned status {resp.status_code} after retries")
-        resp.raise_for_status()
-    data = resp.json()
+    data = query_overpass_with_failover(query)
 
     # Parse
     nodes = {}
@@ -185,12 +232,7 @@ def download_overpass_roads(bbox_3006):
     out body;
     """
     info(f"Querying Overpass for roads in bbox={bbox_3006}")
-    session = create_retry_session()
-    resp = session.post(OVERPASS_URL, data={"data": query}, timeout=60)
-    if resp.status_code != 200:
-        error(f"Overpass API returned status {resp.status_code} after retries")
-        resp.raise_for_status()
-    data = resp.json()
+    data = query_overpass_with_failover(query)
 
     # Parse
     nodes = {}
@@ -240,9 +282,9 @@ def get_buildings_for_bbox(bbox_3006):
     sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "buildings"])
     if sup_rec:
         debug("Found superset bounding box for buildings:", sup_rec["bbox"])
-        gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
+        gdf_all = gpd.read_file(to_absolute_path(sup_rec["filepath"]), layer=sup_rec["layer"])
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
-        saved_filename = sup_rec['filepath']
+        saved_filename = to_absolute_path(sup_rec['filepath'])
         info(f"Subset size: {len(subset_gdf)} features for buildings in bbox={bbox_3006}")
         return subset_gdf, saved_filename
     else:
@@ -256,7 +298,7 @@ def get_buildings_for_bbox(bbox_3006):
         records.append({
             "type": "buildings",
             "bbox": list(bbox_3006),
-            "filepath": out_filename,
+            "filepath": to_relative_path(out_filename),
             "layer": "buildings"
         })
         save_cache_metadata(records)
@@ -276,8 +318,8 @@ def get_roads_for_bbox(bbox_3006):
     sup_rec = find_superset_record(bbox_3006, [r for r in records if r["type"] == "roads"])
     if sup_rec:
         debug("Found superset bounding box for roads:", sup_rec["bbox"])
-        gdf_all = gpd.read_file(sup_rec["filepath"], layer=sup_rec["layer"])
-        saved_filename = sup_rec['filepath']
+        gdf_all = gpd.read_file(to_absolute_path(sup_rec["filepath"]), layer=sup_rec["layer"])
+        saved_filename = to_absolute_path(sup_rec['filepath'])
         subset_gdf = filter_gdf_to_bbox(gdf_all, bbox_3006)
         info(f"Subset size: {len(subset_gdf)} features for roads in bbox={bbox_3006}")
         return subset_gdf, saved_filename
@@ -292,7 +334,7 @@ def get_roads_for_bbox(bbox_3006):
         records.append({
             "type": "roads",
             "bbox": list(bbox_3006),
-            "filepath": out_filename,
+            "filepath": to_relative_path(out_filename),
             "layer": "roads"
         })
         save_cache_metadata(records)
