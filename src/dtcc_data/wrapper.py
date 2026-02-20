@@ -32,8 +32,8 @@ def get_authenticated_session(base_url: str, username: str, password: str) -> re
 
     response = requests.post(token_url, json=payload)
     if response.status_code != 200:
-        error('Token request failed.', 'Status code: ', response.status_code)
-        
+        error(f"Token request failed. Status code: {response.status_code}")
+
 
     data = response.json()
     if "token" not in data:
