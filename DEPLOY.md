@@ -130,6 +130,30 @@ python src/create-atlas-lidar.py /data/laz/ --database-url postgresql://dtcc:dtc
 python src/create-atlas-gpkg.py /data/gpkg/ --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test --workers 0
 ```
 
+### Download data from Lantmäteriet Geotorget
+
+Instead of syncing from S3, you can download data directly from Lantmäteriet's Geotorget API using an order ID. The script downloads zip archives, extracts `.laz`/`.gpkg` files, and ingests them into PostGIS automatically.
+
+```bash
+cd ~/dtcc-data && source .venv/bin/activate
+
+# Download and ingest (full pipeline)
+python src/download-geotorget.py <order-uuid> \
+  --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test
+
+# Download only (no ingestion)
+python src/download-geotorget.py <order-uuid> --output-dir /data --no-ingest
+```
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ORDER_ID` | Yes | -- | Geotorget order UUID |
+| `--output-dir` | No | `/data` | Base directory for `laz/` and `gpkg/` subdirs |
+| `--database-url` | No | `$DATABASE_URL` | PostGIS connection string |
+| `--no-ingest` | No | false | Skip PostGIS ingestion after download |
+
+You can find your order IDs at https://geotorget.lantmateriet.se/mitt-konto/arende.
+
 ## API Endpoints
 
 | Method | Path | Description |
