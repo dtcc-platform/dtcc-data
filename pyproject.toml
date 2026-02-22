@@ -20,11 +20,13 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "dtcc-core", 
+  "dtcc-core",
   "aiohttp==3.11.11",
+  "asyncpg",
   "fastapi==0.115.6",
   "folium==0.19.2",
   "laspy==2.5.4",
+  "psycopg2-binary",
   "pyproj==3.7.0",
   "requests==2.32.3",
   "paramiko",
@@ -33,7 +35,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-asyncio", "httpx"]
 
 [project.scripts]
 dtcc-data-main = "dtcc_data.scripts:main.main"
