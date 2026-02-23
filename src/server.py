@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """FastAPI server for LiDAR and GPKG tile discovery and file serving.
 
-Tile metadata is stored in PostGIS. Raw files are served from disk.
+Tile metadata is stored in PostGIS. GPKG files are served from disk.
+LiDAR files are redirected to S3 presigned URLs when S3_BUCKET is set,
+or served from disk when it is not (local dev).
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -32,6 +34,20 @@ GPKG_DATA_DIRECTORY = os.getenv("GPKG_DATA_DIRECTORY", "/mnt/raid0/testing_by/ti
 RATE_REQ_LIMIT = int(os.getenv("RATE_REQ_LIMIT", "5"))
 RATE_TIME_WINDOW = int(os.getenv("RATE_TIME_WINDOW", "30"))
 RATE_GLOBAL_LIMIT = int(os.getenv("RATE_GLOBAL_LIMIT", "20"))
+S3_BUCKET = os.getenv("S3_BUCKET", "")
+S3_LAZ_PREFIX = os.getenv("S3_LAZ_PREFIX", "laz/")
+S3_REGION = os.getenv("S3_REGION", "eu-north-1")
+
+# Lazy-init S3 client only when needed
+_s3_client = None
+
+
+def _get_s3_client():
+    global _s3_client
+    if _s3_client is None:
+        import boto3
+        _s3_client = boto3.client("s3", region_name=S3_REGION)
+    return _s3_client
 
 
 # --- Models ---
@@ -111,6 +127,17 @@ def create_app() -> FastAPI:
     @app.get("/get/lidar/{filename}")
     @app.get("/files/lidar/{filename}")
     def get_lidar_file(filename: str):
+        if not filename.endswith(".laz"):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        if S3_BUCKET:
+            s3 = _get_s3_client()
+            key = S3_LAZ_PREFIX + filename
+            url = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": S3_BUCKET, "Key": key},
+                ExpiresIn=3600,
+            )
+            return RedirectResponse(url=url, status_code=307)
         path = safe_join(LAZ_DIRECTORY, filename)
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail=f"Lidar file not found: {filename}")

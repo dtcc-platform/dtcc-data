@@ -1,5 +1,6 @@
 """Tests for src/server.py — FastAPI endpoints."""
 
+import importlib
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
@@ -8,9 +9,10 @@ from unittest.mock import AsyncMock, patch, MagicMock
 def client():
     """Create a TestClient with mocked DB pool."""
     with patch("db._pool", MagicMock()):
-        from server import create_app
+        import server as server_mod
+        importlib.reload(server_mod)
         from fastapi.testclient import TestClient
-        app = create_app()
+        app = server_mod.create_app()
         yield TestClient(app, raise_server_exceptions=True)
 
 
@@ -97,3 +99,42 @@ def test_backcompat_gpkg_route(client):
         resp = client.post("/tiles", json={"minx": 268000, "miny": 6473500, "maxx": 278000, "maxy": 6483500})
     assert resp.status_code == 200
     assert resp.json()["num_tiles"] == 1
+
+
+# --- S3 redirect tests ---
+
+def test_lidar_file_s3_redirect():
+    """When S3_BUCKET is set, lidar file endpoint returns 307 redirect."""
+    mock_s3 = MagicMock()
+    mock_s3.generate_presigned_url.return_value = "https://my-bucket.s3.amazonaws.com/laz/tile.laz?signed"
+
+    with patch("db._pool", MagicMock()), \
+         patch("server.S3_BUCKET", "my-bucket"), \
+         patch("server.S3_LAZ_PREFIX", "laz/"), \
+         patch("server._get_s3_client", return_value=mock_s3):
+        import server as server_mod
+        from fastapi.testclient import TestClient
+        app = server_mod.create_app()
+        client = TestClient(app, raise_server_exceptions=True)
+        resp = client.get("/files/lidar/tile.laz", follow_redirects=False)
+
+    assert resp.status_code == 307
+    assert "my-bucket" in resp.headers["location"]
+    mock_s3.generate_presigned_url.assert_called_once_with(
+        "get_object",
+        Params={"Bucket": "my-bucket", "Key": "laz/tile.laz"},
+        ExpiresIn=3600,
+    )
+
+
+def test_lidar_file_disk_when_no_s3(client, tmp_path):
+    """When S3_BUCKET is not set, lidar file is served from disk."""
+    laz_file = tmp_path / "test.laz"
+    laz_file.write_bytes(b"\x00" * 10)
+
+    with patch("server.S3_BUCKET", ""), \
+         patch("server.LAZ_DIRECTORY", str(tmp_path)):
+        resp = client.get("/files/lidar/test.laz")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/octet-stream"

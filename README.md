@@ -33,7 +33,7 @@ python src/create-atlas-lidar.py /path/to/laz/ \
 python src/create-atlas-gpkg.py /path/to/gpkg/ \
   --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test --create-tables --workers 0
 
-# 4. Run server
+# 4. Run server (files served from disk when S3_BUCKET is not set)
 DATABASE_URL=postgresql://dtcc:dtcc@localhost:5433/dtcc_test \
 LAZ_DIRECTORY=/path/to/laz GPKG_DATA_DIRECTORY=/path/to/gpkg \
   python -m uvicorn src.server:app --host 0.0.0.0 --port 8001
@@ -46,7 +46,7 @@ LAZ_DIRECTORY=/path/to/laz GPKG_DATA_DIRECTORY=/path/to/gpkg \
 | `GET` | `/healthz` | Health check |
 | `POST` | `/lidar/tiles` | Find LiDAR tiles intersecting bbox |
 | `POST` | `/gpkg/tiles` | Find GPKG tiles intersecting bbox |
-| `GET` | `/files/lidar/{filename}` | Download `.laz` file |
+| `GET` | `/files/lidar/{filename}` | Download `.laz` file (redirects to S3 when `S3_BUCKET` is set) |
 | `GET` | `/files/gpkg/{filename}` | Download `.gpkg` file |
 
 ### Example

@@ -23,6 +23,7 @@ dependencies = [
   "dtcc-core",
   "aiohttp==3.11.11",
   "asyncpg",
+  "boto3",
   "fastapi==0.115.6",
   "folium==0.19.2",
   "laspy==2.5.4",

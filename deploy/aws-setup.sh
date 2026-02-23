@@ -153,11 +153,16 @@ else
     echo "No .gpkg files found, skipping GPKG ingestion"
 fi
 
+# Delete local .laz files — server will redirect to S3 presigned URLs
+echo "Removing local .laz files (served via S3 presigned URLs)..."
+rm -f /data/laz/*.laz
+echo "  LAZ files remaining: $(ls /data/laz/*.laz 2>/dev/null | wc -l)"
+
 echo "[OK] Data ingested into PostGIS"
 REMOTE_STEP5
 
 log "=== Step 6: Start FastAPI as systemd service ==="
-$SSH_CMD << 'REMOTE_STEP6'
+$SSH_CMD << REMOTE_STEP6
 set -euo pipefail
 
 VENV_PYTHON="/home/ubuntu/dtcc-data/.venv/bin/python"
@@ -173,13 +178,16 @@ Wants=postgresql.service
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/dtcc-data/src
-Environment=DATABASE_URL=${DB_URL}
+Environment=DATABASE_URL=\${DB_URL}
 Environment=LAZ_DIRECTORY=/data/laz
 Environment=GPKG_DATA_DIRECTORY=/data/gpkg
+Environment=S3_BUCKET=$S3_BUCKET
+Environment=S3_LAZ_PREFIX=laz/
+Environment=S3_REGION=${REGION:-eu-north-1}
 Environment=PORT=8001
 Environment=ENABLE_RATE_LIMIT=true
 Environment=PYTHONPATH=/home/ubuntu/dtcc-data/src
-ExecStart=${VENV_PYTHON} -m uvicorn server:app --host 0.0.0.0 --port 8001
+ExecStart=\${VENV_PYTHON} -m uvicorn server:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=5
 
