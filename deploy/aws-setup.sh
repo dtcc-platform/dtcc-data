@@ -23,7 +23,7 @@ SSH_OPTS="-i $KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/nu
 SSH_CMD="ssh $SSH_OPTS ubuntu@$PUBLIC_IP"
 REPO_URL="https://github.com/dtcc-platform/dtcc-data.git"
 REPO_BRANCH="${REPO_BRANCH:-feature/postgis-migration}"
-DB_URL="postgresql://dtcc:dtcc@localhost:5433/dtcc_test"
+DB_URL="postgresql://dtcc:dtcc@localhost:5432/dtcc_data"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
@@ -45,15 +45,9 @@ log "=== Step 1: Install system dependencies ==="
 $SSH_CMD << 'REMOTE_STEP1'
 set -euo pipefail
 
-# Docker
-if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com | sudo sh
-    sudo usermod -aG docker ubuntu
-fi
-
-# Docker compose plugin + postgres client + awscli
+# PostgreSQL 16 + PostGIS
 sudo apt-get update -qq
-sudo apt-get install -y -qq docker-compose-plugin postgresql-client awscli
+sudo apt-get install -y -qq postgresql-16 postgresql-16-postgis-3 awscli
 
 # uv
 if ! command -v uv &> /dev/null; then
@@ -87,33 +81,33 @@ uv pip install -e ".[test]"
 echo "[OK] Application deployed"
 REMOTE_STEP2
 
-log "=== Step 3: Start PostGIS ==="
+log "=== Step 3: Configure PostgreSQL + PostGIS ==="
 $SSH_CMD << 'REMOTE_STEP3'
 set -euo pipefail
 
-cd ~/dtcc-data
+# Create database user and database
+sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dtcc') THEN CREATE ROLE dtcc LOGIN PASSWORD 'dtcc'; END IF; END \$\$;"
+sudo -u postgres psql -c "SELECT 'CREATE DATABASE dtcc_data OWNER dtcc' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dtcc_data')" | sudo -u postgres psql
+sudo -u postgres psql -d dtcc_data -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
-# Start PostGIS container
-sudo docker compose -f docker-compose.test.yml up -d
-
-# Wait for PostGIS to be healthy
-echo "Waiting for PostGIS..."
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL..."
 for i in $(seq 1 30); do
-    if sudo docker compose -f docker-compose.test.yml exec -T db pg_isready -U dtcc -d dtcc_test > /dev/null 2>&1; then
-        echo "PostGIS is ready"
+    if pg_isready -U dtcc -d dtcc_data > /dev/null 2>&1; then
+        echo "PostgreSQL is ready"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        echo "ERROR: PostGIS not ready after 60s" >&2
+        echo "ERROR: PostgreSQL not ready after 60s" >&2
         exit 1
     fi
     sleep 2
 done
 
 # Apply schema
-PGPASSWORD=dtcc psql -h localhost -p 5433 -U dtcc -d dtcc_test -f src/schema.sql
+PGPASSWORD=dtcc psql -h localhost -p 5432 -U dtcc -d dtcc_data -f ~/dtcc-data/src/schema.sql
 
-echo "[OK] PostGIS running and schema applied"
+echo "[OK] PostgreSQL + PostGIS configured and schema applied"
 REMOTE_STEP3
 
 log "=== Step 4: Sync data from S3 ==="
@@ -141,7 +135,7 @@ export PATH="$HOME/.local/bin:$PATH"
 cd ~/dtcc-data
 source .venv/bin/activate
 
-DB_URL="postgresql://dtcc:dtcc@localhost:5433/dtcc_test"
+DB_URL="postgresql://dtcc:dtcc@localhost:5432/dtcc_data"
 
 # Ingest LiDAR tiles
 if ls /data/laz/*.laz 1>/dev/null 2>&1; then
@@ -167,13 +161,13 @@ $SSH_CMD << 'REMOTE_STEP6'
 set -euo pipefail
 
 VENV_PYTHON="/home/ubuntu/dtcc-data/.venv/bin/python"
-DB_URL="postgresql://dtcc:dtcc@localhost:5433/dtcc_test"
+DB_URL="postgresql://dtcc:dtcc@localhost:5432/dtcc_data"
 
 sudo tee /etc/systemd/system/dtcc-data.service > /dev/null << UNIT
 [Unit]
 Description=DTCC Data Tile Server
-After=network.target docker.service
-Wants=docker.service
+After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple

@@ -38,7 +38,7 @@ The server will be available at `http://<public-ip>:8001`.
 
 | Component | Details |
 |-----------|---------|
-| Docker | PostGIS 16 container on port 5433 |
+| PostgreSQL 16 + PostGIS 3 | Native install via apt, port 5432 |
 | Python 3.12 | Managed by uv |
 | FastAPI | Tile server on port 8001 via systemd |
 | Data | Synced from S3 to `/data/laz/` and `/data/gpkg/` |
@@ -107,14 +107,14 @@ sudo systemctl stop dtcc-data
 ### PostGIS
 
 ```bash
-# Check container
-sudo docker compose -f ~/dtcc-data/docker-compose.test.yml ps
+# Check PostgreSQL status
+sudo systemctl status postgresql
 
 # Connect to database
-PGPASSWORD=dtcc psql -h localhost -p 5433 -U dtcc -d dtcc_test
+PGPASSWORD=dtcc psql -h localhost -U dtcc -d dtcc_data
 
 # Check tile counts
-PGPASSWORD=dtcc psql -h localhost -p 5433 -U dtcc -d dtcc_test \
+PGPASSWORD=dtcc psql -h localhost -U dtcc -d dtcc_data \
   -c "SELECT 'lidar', count(*) FROM lidar_tiles UNION SELECT 'gpkg', count(*) FROM gpkg_tiles;"
 ```
 
@@ -126,8 +126,8 @@ aws s3 sync s3://<bucket>/gpkg/ /data/gpkg/
 
 # Re-ingest
 cd ~/dtcc-data && source .venv/bin/activate
-python src/create-atlas-lidar.py /data/laz/ --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test
-python src/create-atlas-gpkg.py /data/gpkg/ --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test --workers 0
+python src/create-atlas-lidar.py /data/laz/ --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data
+python src/create-atlas-gpkg.py /data/gpkg/ --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data --workers 0
 ```
 
 ### Download data from Lantmäteriet Geotorget
@@ -139,7 +139,7 @@ cd ~/dtcc-data && source .venv/bin/activate
 
 # Download and ingest (full pipeline)
 python src/download-geotorget.py <order-uuid> \
-  --database-url postgresql://dtcc:dtcc@localhost:5433/dtcc_test
+  --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data
 
 # Download only (no ingestion)
 python src/download-geotorget.py <order-uuid> --output-dir /data --no-ingest
