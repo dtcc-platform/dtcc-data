@@ -17,6 +17,13 @@ KEY_NAME="${KEY_NAME:-dtcc-data-key}"
 S3_BUCKET="${S3_BUCKET:?S3_BUCKET must be set (e.g. export S3_BUCKET=my-dtcc-bucket)}"
 PROJECT_NAME="${PROJECT_NAME:-dtcc-data}"
 
+# --- Verify S3 bucket exists ---
+if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$REGION" 2>/dev/null; then
+    echo "ERROR: S3 bucket '$S3_BUCKET' does not exist or is not accessible." >&2
+    echo "Create it with: aws s3 mb s3://$S3_BUCKET --region $REGION" >&2
+    exit 1
+fi
+
 # --- Derived ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env.aws"
