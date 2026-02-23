@@ -4,21 +4,35 @@
 
 - AWS CLI installed and configured (`aws configure`)
 - IAM user with permissions for: EC2, VPC, IAM, S3
-- An S3 bucket containing your data:
-  - `s3://<bucket>/laz/` — LiDAR `.laz` files
-  - `s3://<bucket>/gpkg/` — GeoPackage `.gpkg` tile files
 
 ## Quick Start
 
 ```bash
-# 1. Provision AWS infrastructure
+# 1. Create an S3 bucket and upload your data
+aws s3 mb s3://my-dtcc-bucket --region eu-north-1
+aws s3 sync /path/to/local/laz/ s3://my-dtcc-bucket/laz/
+aws s3 sync /path/to/local/gpkg/ s3://my-dtcc-bucket/gpkg/
+
+# 2. Provision AWS infrastructure
 S3_BUCKET=my-dtcc-bucket ./deploy/aws-provision.sh
 
-# 2. Configure the server
+# 3. Configure the server
 ./deploy/aws-setup.sh
 ```
 
 The server will be available at `http://<public-ip>:8001`.
+
+### S3 Bucket Structure
+
+The bucket should contain your geodata in these prefixes:
+
+```
+s3://my-dtcc-bucket/
+  laz/          ← LiDAR .laz files
+  gpkg/         ← GeoPackage .gpkg files
+```
+
+The provisioning script verifies the bucket exists before proceeding. The EC2 instance gets read-only S3 access via an IAM role and syncs data during setup.
 
 ## What Gets Created
 
