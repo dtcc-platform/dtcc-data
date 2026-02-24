@@ -68,7 +68,7 @@ Set these as environment variables before running:
 |----------|----------|---------|-------------|
 | `S3_BUCKET` | Yes | — | S3 bucket name containing .laz and .gpkg data |
 | `AWS_REGION` | No | `eu-north-1` | AWS region |
-| `INSTANCE_TYPE` | No | `t3.large` | EC2 instance type |
+| `INSTANCE_TYPE` | No | `t3.medium` | EC2 instance type |
 | `KEY_NAME` | No | `dtcc-data-key` | SSH key pair name |
 | `PROJECT_NAME` | No | `dtcc-data` | Prefix for all AWS resource names |
 

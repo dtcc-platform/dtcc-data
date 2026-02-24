@@ -12,7 +12,7 @@ set -euo pipefail
 
 # --- Configuration (override via environment) ---
 REGION="${AWS_REGION:-eu-north-1}"
-INSTANCE_TYPE="${INSTANCE_TYPE:-t3.large}"
+INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
 KEY_NAME="${KEY_NAME:-dtcc-data-key}"
 S3_BUCKET="${S3_BUCKET:?S3_BUCKET must be set (e.g. export S3_BUCKET=my-dtcc-bucket)}"
 PROJECT_NAME="${PROJECT_NAME:-dtcc-data}"
