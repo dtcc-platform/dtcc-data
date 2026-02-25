@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Scan .laz files and populate the lidar_tiles PostGIS table."""
 
+import io
 import os
 import argparse
 
@@ -38,21 +39,66 @@ def create_tables(conn):
     conn.commit()
 
 
+def _read_header_from_file(path: str) -> laspy.LasHeader:
+    with laspy.open(path) as f:
+        return f.header
+
+
+def _read_header_from_s3(s3_client, bucket: str, key: str) -> laspy.LasHeader:
+    """Read just the .laz header from S3 using a range request (~8 KB)."""
+    resp = s3_client.get_object(Bucket=bucket, Key=key, Range="bytes=0-8191")
+    header_bytes = resp["Body"].read()
+    with laspy.open(io.BytesIO(header_bytes)) as f:
+        return f.header
+
+
 def ingest_laz_directory(directory: str, conn):
     """Scan directory for .laz files and upsert into lidar_tiles."""
     laz_files = [f for f in os.listdir(directory) if f.lower().endswith(".laz")]
     if not laz_files:
         print(f"No .laz files found in {directory}")
         return
+    _ingest_files(laz_files, lambda name: _read_header_from_file(os.path.join(directory, name)), conn)
 
+
+def ingest_laz_from_s3(bucket: str, prefix: str, region: str, conn):
+    """List .laz files in S3 and ingest headers into lidar_tiles."""
+    import boto3
+    s3 = boto3.client("s3", region_name=region)
+
+    laz_files = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.lower().endswith(".laz"):
+                laz_files.append(key)
+
+    if not laz_files:
+        print(f"No .laz files found in s3://{bucket}/{prefix}")
+        return
+
+    print(f"Found {len(laz_files)} .laz files in s3://{bucket}/{prefix}")
+
+    def read_header(name):
+        return _read_header_from_s3(s3, bucket, name)
+
+    # name stored in DB is the basename, but we pass full key for reading
+    _ingest_files(
+        laz_files, read_header, conn,
+        name_fn=lambda key: os.path.basename(key),
+    )
+
+
+def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
+    """Common ingestion logic for both local and S3 sources."""
     inserted = 0
     with conn.cursor() as cur:
-        for laz_name in laz_files:
-            laz_path = os.path.join(directory, laz_name)
-            with laspy.open(laz_path) as laz_file:
-                hdr = laz_file.header
-                min_x, min_y, _ = hdr.mins
-                max_x, max_y, _ = hdr.maxs
+        for laz_ref in laz_files:
+            laz_name = name_fn(laz_ref) if name_fn else laz_ref
+            hdr = read_header_fn(laz_ref)
+            min_x, min_y, _ = hdr.mins
+            max_x, max_y, _ = hdr.maxs
 
             origin_x = int(min_x)
             origin_y = int(min_y)
@@ -76,6 +122,8 @@ def ingest_laz_directory(directory: str, conn):
                 origin_x, origin_y, origin_x + width, origin_y + height,
             ))
             inserted += 1
+            if inserted % 100 == 0:
+                print(f"  ingested {inserted}/{len(laz_files)}...")
 
     conn.commit()
     print(f"Ingested {inserted} LiDAR tiles into database.")
@@ -83,13 +131,18 @@ def ingest_laz_directory(directory: str, conn):
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest LiDAR .laz files into PostGIS")
-    parser.add_argument("directory", help="Directory containing .laz files")
+    parser.add_argument("directory", nargs="?", help="Directory containing .laz files")
+    parser.add_argument("--s3-bucket", help="Read .laz headers from S3 instead of local disk")
+    parser.add_argument("--s3-prefix", default="laz/", help="S3 key prefix (default: laz/)")
+    parser.add_argument("--s3-region", default="eu-north-1", help="S3 region (default: eu-north-1)")
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"),
                         help="PostgreSQL connection string (or set DATABASE_URL env var)")
     parser.add_argument("--create-tables", action="store_true",
                         help="Create tables if they don't exist")
     args = parser.parse_args()
 
+    if not args.s3_bucket and not args.directory:
+        parser.error("either directory or --s3-bucket is required")
     if not args.database_url:
         parser.error("--database-url or DATABASE_URL env var is required")
 
@@ -97,7 +150,10 @@ def main():
     try:
         if args.create_tables:
             create_tables(conn)
-        ingest_laz_directory(args.directory, conn)
+        if args.s3_bucket:
+            ingest_laz_from_s3(args.s3_bucket, args.s3_prefix, args.s3_region, conn)
+        else:
+            ingest_laz_directory(args.directory, conn)
     finally:
         conn.close()
 

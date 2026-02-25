@@ -47,7 +47,15 @@ set -euo pipefail
 
 # PostgreSQL 16 + PostGIS
 sudo apt-get update -qq
-sudo apt-get install -y -qq postgresql-16 postgresql-16-postgis-3 awscli
+sudo apt-get install -y -qq postgresql-16 postgresql-16-postgis-3 unzip
+
+# AWS CLI v2
+if ! command -v aws &> /dev/null; then
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp
+    sudo /tmp/aws/install
+    rm -rf /tmp/awscliv2.zip /tmp/aws
+fi
 
 # uv
 if ! command -v uv &> /dev/null; then
@@ -74,7 +82,7 @@ fi
 
 # Create venv and install
 cd ~/dtcc-data
-uv venv .venv
+uv venv .venv --allow-existing
 source .venv/bin/activate
 uv pip install -e ".[test]"
 
@@ -87,7 +95,7 @@ set -euo pipefail
 
 # Create database user and database
 sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dtcc') THEN CREATE ROLE dtcc LOGIN PASSWORD 'dtcc'; END IF; END \$\$;"
-sudo -u postgres psql -c "SELECT 'CREATE DATABASE dtcc_data OWNER dtcc' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dtcc_data')" | sudo -u postgres psql
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'dtcc_data'" | grep -q 1 || sudo -u postgres psql -c "CREATE DATABASE dtcc_data OWNER dtcc"
 sudo -u postgres psql -d dtcc_data -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 # Wait for PostgreSQL to be ready
@@ -110,53 +118,40 @@ PGPASSWORD=dtcc psql -h localhost -p 5432 -U dtcc -d dtcc_data -f ~/dtcc-data/sr
 echo "[OK] PostgreSQL + PostGIS configured and schema applied"
 REMOTE_STEP3
 
-log "=== Step 4: Sync data from S3 ==="
+log "=== Step 4: Sync GPKG data from S3 ==="
 $SSH_CMD << REMOTE_STEP4
 set -euo pipefail
 
-sudo mkdir -p /data/laz /data/gpkg
+sudo mkdir -p /data/gpkg
 sudo chown -R ubuntu:ubuntu /data
-
-echo "Syncing LiDAR data from s3://$S3_BUCKET/laz/ ..."
-aws s3 sync "s3://$S3_BUCKET/laz/" /data/laz/
 
 echo "Syncing GPKG data from s3://$S3_BUCKET/gpkg/ ..."
 aws s3 sync "s3://$S3_BUCKET/gpkg/" /data/gpkg/
 
-echo "[OK] Data synced from S3"
-echo "  LAZ files: \$(ls /data/laz/*.laz 2>/dev/null | wc -l)"
+echo "[OK] GPKG data synced from S3"
 echo "  GPKG files: \$(ls /data/gpkg/*.gpkg 2>/dev/null | wc -l)"
 REMOTE_STEP4
 
 log "=== Step 5: Ingest into PostGIS ==="
-$SSH_CMD << 'REMOTE_STEP5'
+$SSH_CMD << REMOTE_STEP5
 set -euo pipefail
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="\$HOME/.local/bin:\$PATH"
 cd ~/dtcc-data
 source .venv/bin/activate
 
 DB_URL="postgresql://dtcc:dtcc@localhost:5432/dtcc_data"
 
-# Ingest LiDAR tiles
-if ls /data/laz/*.laz 1>/dev/null 2>&1; then
-    echo "Ingesting LiDAR tiles..."
-    python src/create-atlas-lidar.py /data/laz/ --database-url "$DB_URL" --create-tables
-else
-    echo "No .laz files found, skipping LiDAR ingestion"
-fi
+# Ingest LiDAR tiles — read headers directly from S3 (no local download)
+echo "Ingesting LiDAR tile headers from s3://$S3_BUCKET/laz/ ..."
+python src/create-atlas-lidar.py --s3-bucket $S3_BUCKET --s3-prefix laz/ --s3-region ${REGION:-eu-north-1} --database-url "\$DB_URL" --create-tables
 
-# Ingest GPKG tiles
+# Ingest GPKG tiles from local disk
 if ls /data/gpkg/*.gpkg 1>/dev/null 2>&1; then
     echo "Ingesting GPKG tiles..."
-    python src/create-atlas-gpkg.py /data/gpkg/ --database-url "$DB_URL" --create-tables --workers 0
+    python src/create-atlas-gpkg.py /data/gpkg/ --database-url "\$DB_URL" --create-tables --workers 0
 else
     echo "No .gpkg files found, skipping GPKG ingestion"
 fi
-
-# Delete local .laz files — server will redirect to S3 presigned URLs
-echo "Removing local .laz files (served via S3 presigned URLs)..."
-rm -f /data/laz/*.laz
-echo "  LAZ files remaining: $(ls /data/laz/*.laz 2>/dev/null | wc -l)"
 
 echo "[OK] Data ingested into PostGIS"
 REMOTE_STEP5
