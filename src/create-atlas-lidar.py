@@ -68,11 +68,13 @@ def ingest_laz_from_s3(bucket: str, prefix: str, region: str, conn):
 
     laz_files = []
     paginator = s3.get_paginator("list_objects_v2")
+    print(f"Listing .laz files in s3://{bucket}/{prefix} ...", flush=True)
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             if key.lower().endswith(".laz"):
                 laz_files.append(key)
+        print(f"  listed {len(laz_files)} files so far...", flush=True)
 
     if not laz_files:
         print(f"No .laz files found in s3://{bucket}/{prefix}")
@@ -122,8 +124,8 @@ def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
                 origin_x, origin_y, origin_x + width, origin_y + height,
             ))
             inserted += 1
-            if inserted % 100 == 0:
-                print(f"  ingested {inserted}/{len(laz_files)}...")
+            if inserted % 10 == 0:
+                print(f"  ingested {inserted}/{len(laz_files)}...", flush=True)
 
     conn.commit()
     print(f"Ingested {inserted} LiDAR tiles into database.")
