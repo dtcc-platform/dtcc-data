@@ -101,14 +101,13 @@ def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
     if existing:
         print(f"  {len(existing)} tiles already in DB, skipping those", flush=True)
 
+    to_ingest = [f for f in laz_files if (name_fn(f) if name_fn else f) not in existing]
+    print(f"  {len(to_ingest)} tiles to ingest", flush=True)
+
     inserted = 0
-    skipped = 0
     with conn.cursor() as cur:
-        for laz_ref in laz_files:
+        for laz_ref in to_ingest:
             laz_name = name_fn(laz_ref) if name_fn else laz_ref
-            if laz_name in existing:
-                skipped += 1
-                continue
             hdr = read_header_fn(laz_ref)
             min_x, min_y, _ = hdr.mins
             max_x, max_y, _ = hdr.maxs
@@ -136,12 +135,12 @@ def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
             ))
             inserted += 1
             if inserted % 10 == 0:
-                print(f"  ingested {inserted}/{len(laz_files)}...", flush=True)
+                print(f"  ingested {inserted}/{len(to_ingest)}...", flush=True)
             if inserted % 500 == 0:
                 conn.commit()
 
     conn.commit()
-    print(f"Ingested {inserted} new tiles, skipped {skipped} existing.")
+    print(f"Ingested {inserted} new tiles, {len(existing)} already existed.")
 
 
 def main():
