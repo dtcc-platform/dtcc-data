@@ -137,6 +137,8 @@ def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
             inserted += 1
             if inserted % 10 == 0:
                 print(f"  ingested {inserted}/{len(laz_files)}...", flush=True)
+            if inserted % 500 == 0:
+                conn.commit()
 
     conn.commit()
     print(f"Ingested {inserted} new tiles, skipped {skipped} existing.")
