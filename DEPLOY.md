@@ -1,4 +1,4 @@
-# Deploying DTCC Data Tile Server on AWS
+# Deploying on AWS
 
 ## Prerequisites
 
@@ -8,31 +8,164 @@
 ## Quick Start
 
 ```bash
-# 1. Create an S3 bucket and upload your data
+# 1. Create your deploy config
+cp deploy/deploy.env.example deploy/deploy.env
+# Edit deploy/deploy.env with your values
+
+# 2. If using S3, create bucket and upload data
 aws s3 mb s3://my-dtcc-bucket --region eu-north-1
 aws s3 sync /path/to/local/laz/ s3://my-dtcc-bucket/laz/
 aws s3 sync /path/to/local/gpkg/ s3://my-dtcc-bucket/gpkg/
 
-# 2. Provision AWS infrastructure
-S3_BUCKET=my-dtcc-bucket ./deploy/aws-provision.sh
+# 3. Provision AWS infrastructure
+./deploy/aws-provision.sh
 
-# 3. Configure the server
+# 4. Configure the server
 ./deploy/aws-setup.sh
 ```
 
-The server will be available at `http://<public-ip>:8001`.
+The server will be available at `http://<public-ip>:<FASTAPI_PORT>`.
 
-### S3 Bucket Structure
+## Configuration
 
-The bucket should contain your geodata in these prefixes:
+All configuration is in `deploy/deploy.env` (gitignored). Copy from `deploy/deploy.env.example` and edit.
 
+### Required Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REPO_URL` | — | Git repository URL |
+| `REPO_BRANCH` | `main` | Branch to deploy |
+
+### AWS Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AWS_REGION` | `eu-north-1` | AWS region |
+| `INSTANCE_TYPE` | `t3.medium` | EC2 instance type |
+| `EBS_VOLUME_SIZE` | `100` | Root volume size in GB |
+| `KEY_NAME` | `dtcc-data-key` | SSH key pair name |
+| `PROJECT_NAME` | `dtcc-data` | Prefix for all AWS resource names |
+| `SG_PORTS` | `22 8001` | Space-separated inbound TCP ports |
+
+### App Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `dtcc-data` | Systemd service name + clone directory |
+| `FASTAPI_MODULE` | `server:app` | Uvicorn module path |
+| `FASTAPI_PORT` | `8001` | Port for the FastAPI server |
+| `WORK_DIR` | `src` | Working directory relative to repo root |
+| `PYTHON_EXTRAS` | `.[test]` | pip install extras |
+
+### Optional: Extra Repos
+
+Clone and `pip install -e` additional repositories before the main app. Useful when your app depends on libraries not available on PyPI.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EXTRA_REPOS` | *(empty)* | Space-separated `url@branch` pairs |
+
+```bash
+EXTRA_REPOS="https://github.com/dtcc-platform/dtcc-sim.git@main"
 ```
-s3://my-dtcc-bucket/
-  laz/          ← LiDAR .laz files
-  gpkg/         ← GeoPackage .gpkg files
+
+### Optional: Conda
+
+When set, creates a conda environment (via Miniforge) instead of a uv venv. Use this for packages only available on conda-forge.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONDA_PACKAGES` | *(empty)* | Space-separated conda-forge packages. Empty = uv-only |
+
+```bash
+CONDA_PACKAGES="fenics-dolfinx mpich pyvista"
 ```
 
-The provisioning script verifies the bucket exists before proceeding. The EC2 instance gets read-only S3 access via an IAM role and syncs data during setup.
+When `CONDA_PACKAGES` is set, the systemd service automatically gets `PATH`, `CONDA_PREFIX`, and `LD_LIBRARY_PATH` configured for the conda env.
+
+### Optional: S3
+
+Leave `S3_BUCKET` empty to skip IAM role creation and S3 access.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `S3_BUCKET` | *(empty)* | S3 bucket name. Empty = no S3 |
+| `S3_LAZ_PREFIX` | `laz/` | Key prefix for .laz files |
+| `S3_REGION` | `eu-north-1` | Region for S3 client |
+
+### Optional: PostgreSQL
+
+Leave `DB_NAME` empty to skip PostgreSQL installation and database setup entirely.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_NAME` | *(empty)* | Database name. Empty = no DB |
+| `DB_USER` | `dtcc` | Database user |
+| `DB_PASS` | `dtcc` | Database password |
+
+### Optional: Systemd Extra Env Vars
+
+```bash
+SYSTEMD_ENV="
+PYTHONPATH=/home/ubuntu/dtcc-data/src
+MY_CUSTOM_VAR=value
+"
+```
+
+### Optional: Post-Setup Script
+
+Set `POST_SETUP_SCRIPT` to a script path (relative to repo root) that runs after base setup but before the systemd service starts. This is where app-specific steps go (data sync, ingestion, etc.).
+
+```bash
+POST_SETUP_SCRIPT=deploy/post-setup-dtcc-data.sh
+```
+
+The script runs on the remote host with all deploy.env variables exported.
+
+### Example: dtcc-data config
+
+```bash
+REPO_URL=https://github.com/dtcc-platform/dtcc-data.git
+REPO_BRANCH=main
+APP_NAME=dtcc-data
+FASTAPI_MODULE=server:app
+FASTAPI_PORT=8001
+WORK_DIR=src
+PYTHON_EXTRAS=".[test]"
+S3_BUCKET=my-dtcc-bucket
+DB_NAME=dtcc_data
+DB_USER=dtcc
+DB_PASS=dtcc
+SYSTEMD_ENV="
+PYTHONPATH=/home/ubuntu/dtcc-data/src
+"
+POST_SETUP_SCRIPT=deploy/post-setup-dtcc-data.sh
+```
+
+### Example: dtcc-atlas config
+
+dtcc-atlas depends on dtcc-sim (which needs FEniCSx from conda-forge) and has a Svelte frontend:
+
+```bash
+REPO_URL=https://github.com/dtcc-platform/dtcc-atlas.git
+REPO_BRANCH=main
+INSTANCE_TYPE=t3.xlarge
+EBS_VOLUME_SIZE=50
+KEY_NAME=dtcc-atlas-key
+PROJECT_NAME=dtcc-atlas
+SG_PORTS="22 8000"
+APP_NAME=dtcc-atlas
+FASTAPI_MODULE=server.main:app
+FASTAPI_PORT=8000
+WORK_DIR=.
+PYTHON_EXTRAS="."
+EXTRA_REPOS="https://github.com/dtcc-platform/dtcc-sim.git@main"
+CONDA_PACKAGES="fenics-dolfinx mpich pyvista"
+S3_BUCKET=
+DB_NAME=
+POST_SETUP_SCRIPT=deploy/post-setup-dtcc-atlas.sh
+```
 
 ## What Gets Created
 
@@ -43,58 +176,18 @@ The provisioning script verifies the bucket exists before proceeding. The EC2 in
 | VPC | `10.0.0.0/16` with DNS support |
 | Subnet | `10.0.1.0/24`, public, auto-assign IP |
 | Internet Gateway | Attached to VPC |
-| Security Group | Inbound: SSH (22), API (8001) |
-| Key Pair | PEM saved to `deploy/dtcc-data-key.pem` |
-| IAM Role | EC2 role with S3 read-only access |
-| EC2 Instance | Ubuntu 24.04, 100GB gp3 EBS |
+| Security Group | Inbound ports from `SG_PORTS` |
+| Key Pair | PEM saved to `deploy/<KEY_NAME>.pem` |
+| IAM Role | EC2 role with S3 read-only (only if `S3_BUCKET` set) |
+| EC2 Instance | Ubuntu 24.04, `EBS_VOLUME_SIZE` GB gp3 EBS |
 
 ### Server Stack (`aws-setup.sh`)
 
 | Component | Details |
 |-----------|---------|
-| PostgreSQL 16 + PostGIS 3 | Native install via apt, port 5432 |
-| Python 3.12 | Managed by uv |
-| FastAPI | Tile server on port 8001 via systemd |
-| LiDAR data | Streamed from S3 via presigned URLs (local .laz files deleted after ingestion) |
-| GPKG data | Served from local disk (`/data/gpkg/`) |
-
-## Configuration Variables
-
-### aws-provision.sh
-
-Set these as environment variables before running:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `S3_BUCKET` | Yes | — | S3 bucket name containing .laz and .gpkg data |
-| `AWS_REGION` | No | `eu-north-1` | AWS region |
-| `INSTANCE_TYPE` | No | `t3.medium` | EC2 instance type |
-| `KEY_NAME` | No | `dtcc-data-key` | SSH key pair name |
-| `PROJECT_NAME` | No | `dtcc-data` | Prefix for all AWS resource names |
-
-Example with overrides:
-
-```bash
-AWS_REGION=eu-west-1 INSTANCE_TYPE=t3.xlarge S3_BUCKET=my-bucket ./deploy/aws-provision.sh
-```
-
-### aws-setup.sh
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `REPO_BRANCH` | No | `feature/postgis-migration` | Git branch to deploy |
-
-All other values are read from `deploy/.env.aws` (generated by the provisioning step).
-
-### Tile server (systemd environment)
-
-These are set automatically by `aws-setup.sh` in the systemd unit:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `S3_BUCKET` | *(empty)* | S3 bucket name. When set, LiDAR requests redirect to S3 presigned URLs. When empty, files are served from disk (local dev). |
-| `S3_LAZ_PREFIX` | `laz/` | Key prefix for .laz files in the bucket |
-| `S3_REGION` | `eu-north-1` | AWS region for the S3 client |
+| PostgreSQL 16 + PostGIS 3 | Only if `DB_NAME` set |
+| Python 3.12 | Managed by uv (or conda if `CONDA_PACKAGES` set) |
+| FastAPI | Via systemd, configured from deploy.env |
 
 ## Generated Files
 
@@ -102,62 +195,57 @@ These files are created locally and **gitignored**:
 
 | File | Contents |
 |------|----------|
-| `deploy/.env.aws` | AWS resource IDs, public IP, config |
-| `deploy/dtcc-data-key.pem` | SSH private key |
+| `deploy/deploy.env` | Your per-app config |
+| `deploy/.env.aws` | AWS resource IDs, public IP |
+| `deploy/<KEY_NAME>.pem` | SSH private key |
 
 ## Server Management
 
 After deployment, SSH into the instance:
 
 ```bash
-ssh -i deploy/dtcc-data-key.pem ubuntu@<public-ip>
+ssh -i deploy/<KEY_NAME>.pem ubuntu@<public-ip>
 ```
 
 ### Service commands
 
 ```bash
 # Check status
-sudo systemctl status dtcc-data
+sudo systemctl status <APP_NAME>
 
 # View logs
-sudo journalctl -u dtcc-data -f
+sudo journalctl -u <APP_NAME> -f
 
 # Restart
-sudo systemctl restart dtcc-data
+sudo systemctl restart <APP_NAME>
 
 # Stop
-sudo systemctl stop dtcc-data
+sudo systemctl stop <APP_NAME>
 ```
 
-### PostGIS
+### PostGIS (if DB_NAME is set)
 
 ```bash
 # Check PostgreSQL status
 sudo systemctl status postgresql
 
 # Connect to database
-PGPASSWORD=dtcc psql -h localhost -U dtcc -d dtcc_data
-
-# Check tile counts
-PGPASSWORD=dtcc psql -h localhost -U dtcc -d dtcc_data \
-  -c "SELECT 'lidar', count(*) FROM lidar_tiles UNION SELECT 'gpkg', count(*) FROM gpkg_tiles;"
+PGPASSWORD=<DB_PASS> psql -h localhost -U <DB_USER> -d <DB_NAME>
 ```
 
-### Re-sync data from S3
+## S3 Bucket Structure
 
-```bash
-aws s3 sync s3://<bucket>/laz/ /data/laz/
-aws s3 sync s3://<bucket>/gpkg/ /data/gpkg/
+When using S3, the bucket should contain your geodata in these prefixes:
 
-# Re-ingest
-cd ~/dtcc-data && source .venv/bin/activate
-python src/create-atlas-lidar.py /data/laz/ --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data
-python src/create-atlas-gpkg.py /data/gpkg/ --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data --workers 0
+```
+s3://my-bucket/
+  laz/          ← LiDAR .laz files
+  gpkg/         ← GeoPackage .gpkg files
 ```
 
-### Download data from Lantmäteriet Geotorget
+### Download data from Lantmateriet Geotorget
 
-Instead of syncing from S3, you can download data directly from Lantmäteriet's Geotorget API using an order ID. The script downloads zip archives, extracts `.laz`/`.gpkg` files, and ingests them into PostGIS automatically.
+Instead of syncing from S3, you can download data directly from Lantmateriet's Geotorget API using an order ID. The script downloads zip archives, extracts `.laz`/`.gpkg` files, and ingests them into PostGIS automatically.
 
 ```bash
 cd ~/dtcc-data && source .venv/bin/activate
@@ -216,7 +304,7 @@ source deploy/.env.aws
 aws ec2 terminate-instances --region $REGION --instance-ids $INSTANCE_ID
 aws ec2 wait instance-terminated --region $REGION --instance-ids $INSTANCE_ID
 
-# Remove IAM
+# Remove IAM (only if S3 was configured)
 aws iam remove-role-from-instance-profile --instance-profile-name ${PROJECT_NAME}-ec2-profile --role-name ${PROJECT_NAME}-ec2-role
 aws iam delete-instance-profile --instance-profile-name ${PROJECT_NAME}-ec2-profile
 aws iam detach-role-policy --role-name ${PROJECT_NAME}-ec2-role --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess

@@ -2,30 +2,45 @@
 set -euo pipefail
 
 # =============================================================================
-# DTCC Data — AWS Infrastructure Provisioning
+# AWS Infrastructure Provisioning
 #
-# Creates: VPC, subnet, internet gateway, security group, IAM role, EC2 instance
+# Creates: VPC, subnet, internet gateway, security group, EC2 instance
+# Optionally: IAM role (if S3_BUCKET is set)
 # Output:  deploy/.env.aws with all resource IDs
-# Usage:   S3_BUCKET=my-bucket ./deploy/aws-provision.sh
+# Config:  deploy/deploy.env (copy from deploy.env.example)
 # Prereqs: aws cli configured with appropriate credentials
 # =============================================================================
 
-# --- Configuration (override via environment) ---
-REGION="${AWS_REGION:-eu-north-1}"
-INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
-KEY_NAME="${KEY_NAME:-dtcc-data-key}"
-S3_BUCKET="${S3_BUCKET:?S3_BUCKET must be set (e.g. export S3_BUCKET=my-dtcc-bucket)}"
-PROJECT_NAME="${PROJECT_NAME:-dtcc-data}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEPLOY_ENV="$SCRIPT_DIR/deploy.env"
 
-# --- Verify S3 bucket exists ---
-if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$REGION" 2>/dev/null; then
-    echo "ERROR: S3 bucket '$S3_BUCKET' does not exist or is not accessible." >&2
-    echo "Create it with: aws s3 mb s3://$S3_BUCKET --region $REGION" >&2
+if [ ! -f "$DEPLOY_ENV" ]; then
+    echo "ERROR: $DEPLOY_ENV not found." >&2
+    echo "Copy deploy.env.example to deploy.env and edit for your project." >&2
     exit 1
 fi
 
+source "$DEPLOY_ENV"
+
+# --- Configuration ---
+REGION="${AWS_REGION:-eu-north-1}"
+INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
+EBS_VOLUME_SIZE="${EBS_VOLUME_SIZE:-100}"
+KEY_NAME="${KEY_NAME:-dtcc-data-key}"
+PROJECT_NAME="${PROJECT_NAME:-dtcc-data}"
+SG_PORTS="${SG_PORTS:-22 8001}"
+S3_BUCKET="${S3_BUCKET:-}"
+
+# --- Verify S3 bucket exists (only if configured) ---
+if [ -n "$S3_BUCKET" ]; then
+    if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$REGION" 2>/dev/null; then
+        echo "ERROR: S3 bucket '$S3_BUCKET' does not exist or is not accessible." >&2
+        echo "Create it with: aws s3 mb s3://$S3_BUCKET --region $REGION" >&2
+        exit 1
+    fi
+fi
+
 # --- Derived ---
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env.aws"
 KEY_FILE="$SCRIPT_DIR/${KEY_NAME}.pem"
 
@@ -110,19 +125,16 @@ log "Creating security group..."
 SG_ID=$(aws ec2 create-security-group \
     --region "$REGION" \
     --group-name "${PROJECT_NAME}-sg" \
-    --description "DTCC Data tile server" \
+    --description "${PROJECT_NAME} server" \
     --vpc-id "$VPC_ID" \
     --tag-specifications "$(tag_spec security-group sg)" \
     --query 'GroupId' --output text)
-# SSH
-aws ec2 authorize-security-group-ingress \
-    --region "$REGION" --group-id "$SG_ID" \
-    --protocol tcp --port 22 --cidr 0.0.0.0/0 > /dev/null
-# API
-aws ec2 authorize-security-group-ingress \
-    --region "$REGION" --group-id "$SG_ID" \
-    --protocol tcp --port 8001 --cidr 0.0.0.0/0 > /dev/null
-log "Security group: $SG_ID (ports 22, 8001)"
+for PORT in $SG_PORTS; do
+    aws ec2 authorize-security-group-ingress \
+        --region "$REGION" --group-id "$SG_ID" \
+        --protocol tcp --port "$PORT" --cidr 0.0.0.0/0 > /dev/null
+done
+log "Security group: $SG_ID (ports: $SG_PORTS)"
 
 # --- Key Pair ---
 if [ -f "$KEY_FILE" ]; then
@@ -137,37 +149,45 @@ else
     log "Key pair saved: $KEY_FILE"
 fi
 
-# --- IAM Role + Instance Profile (S3 read-only) ---
-log "Creating IAM role..."
-ROLE_NAME="${PROJECT_NAME}-ec2-role"
-PROFILE_NAME="${PROJECT_NAME}-ec2-profile"
+# --- IAM Role + Instance Profile (only if S3_BUCKET is set) ---
+PROFILE_ARG=""
+if [ -n "$S3_BUCKET" ]; then
+    log "Creating IAM role for S3 access..."
+    ROLE_NAME="${PROJECT_NAME}-ec2-role"
+    PROFILE_NAME="${PROJECT_NAME}-ec2-profile"
 
-aws iam create-role \
-    --role-name "$ROLE_NAME" \
-    --assume-role-policy-document '{
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Effect": "Allow",
-            "Principal": {"Service": "ec2.amazonaws.com"},
-            "Action": "sts:AssumeRole"
-        }]
-    }' --no-cli-pager > /dev/null 2>&1 || log "IAM role already exists"
+    aws iam create-role \
+        --role-name "$ROLE_NAME" \
+        --assume-role-policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "ec2.amazonaws.com"},
+                "Action": "sts:AssumeRole"
+            }]
+        }' --no-cli-pager > /dev/null 2>&1 || log "IAM role already exists"
 
-aws iam attach-role-policy \
-    --role-name "$ROLE_NAME" \
-    --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess 2>/dev/null || true
+    aws iam attach-role-policy \
+        --role-name "$ROLE_NAME" \
+        --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess 2>/dev/null || true
 
-aws iam create-instance-profile \
-    --instance-profile-name "$PROFILE_NAME" > /dev/null 2>&1 || true
-aws iam add-role-to-instance-profile \
-    --instance-profile-name "$PROFILE_NAME" \
-    --role-name "$ROLE_NAME" 2>/dev/null || true
+    aws iam create-instance-profile \
+        --instance-profile-name "$PROFILE_NAME" > /dev/null 2>&1 || true
+    aws iam add-role-to-instance-profile \
+        --instance-profile-name "$PROFILE_NAME" \
+        --role-name "$ROLE_NAME" 2>/dev/null || true
 
-log "Waiting for IAM profile propagation..."
-sleep 10
+    log "Waiting for IAM profile propagation..."
+    sleep 10
+
+    PROFILE_ARG="--iam-instance-profile Name=$PROFILE_NAME"
+fi
 
 # --- EC2 Instance ---
 log "Launching EC2 instance ($INSTANCE_TYPE)..."
+# Build block-device-mappings with configured volume size
+BDM="[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":${EBS_VOLUME_SIZE},\"VolumeType\":\"gp3\"}}]"
+
 INSTANCE_ID=$(aws ec2 run-instances \
     --region "$REGION" \
     --image-id "$AMI_ID" \
@@ -175,8 +195,8 @@ INSTANCE_ID=$(aws ec2 run-instances \
     --key-name "$KEY_NAME" \
     --security-group-ids "$SG_ID" \
     --subnet-id "$SUBNET_ID" \
-    --iam-instance-profile "Name=$PROFILE_NAME" \
-    --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":100,"VolumeType":"gp3"}}]' \
+    $PROFILE_ARG \
+    --block-device-mappings "$BDM" \
     --tag-specifications "$(tag_spec instance server)" \
     --query 'Instances[0].InstanceId' --output text)
 log "Instance: $INSTANCE_ID"
@@ -200,10 +220,14 @@ SG_ID=$SG_ID
 IGW_ID=$IGW_ID
 KEY_FILE=$KEY_FILE
 KEY_NAME=$KEY_NAME
-S3_BUCKET=$S3_BUCKET
 REGION=$REGION
 PROJECT_NAME=$PROJECT_NAME
 ENVEOF
+
+# Include S3 info only if configured
+if [ -n "$S3_BUCKET" ]; then
+    echo "S3_BUCKET=$S3_BUCKET" >> "$ENV_FILE"
+fi
 
 log "Environment saved to $ENV_FILE"
 echo ""

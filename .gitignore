@@ -14,7 +14,9 @@ src/nohup.out
 */.venv*/
 .venv/*
 *.jsonl
+temp/
 
 # AWS deployment secrets
+deploy/deploy.env
 deploy/.env.aws
 deploy/*.pem
