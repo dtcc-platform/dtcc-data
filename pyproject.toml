@@ -30,6 +30,7 @@ dependencies = [
   "psycopg2-binary",
   "pyproj==3.7.0",
   "requests==2.32.3",
+  "uvicorn",
   "paramiko",
   "geopandas",
   "platformdirs >= 4.3.6"
