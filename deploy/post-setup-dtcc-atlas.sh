@@ -16,8 +16,4 @@ cd ~/${APP_NAME}/frontend
 npm install
 npm run build
 
-# Copy built assets to FastAPI static dir
-mkdir -p ~/${APP_NAME}/server/static
-cp -r dist/* ~/${APP_NAME}/server/static/
-
-echo "[OK] Frontend built and copied to server/static/"
+echo "[OK] Frontend built"
