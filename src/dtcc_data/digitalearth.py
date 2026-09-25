@@ -59,6 +59,9 @@ PROBE_PIXELS = 32
 # How many catalogue dates to probe before giving up.
 MAX_DATE_CANDIDATES = 12
 
+# Warn when less than this fraction of the requested area has imagery.
+COVERAGE_WARNING_THRESHOLD = 0.99
+
 # Two layers cover the same archive but are tuned differently. Despite its
 # name, 'sentinel2_reflectance2022' is the one for imagery *before* 2022.
 LAYER_FROM_2022 = "sentinel2_reflectance"
@@ -121,7 +124,8 @@ def _stac_search_all(session, payload, max_pages=20):
     features = []
     url = f"{STAC_URL}/search"
     body = dict(payload)
-    for _ in range(max_pages):
+    truncated = False
+    for page_number in range(max_pages):
         debug(f"[POST] to {url} with payload={body}")
         resp = session.post(url, json=body, timeout=60)
         if resp.status_code != 200:
@@ -136,8 +140,20 @@ def _stac_search_all(session, payload, max_pages=20):
         )
         if not page or not next_link:
             break
+        if page_number == max_pages - 1:
+            truncated = True
+            break
         url = next_link.get("href", url)
         body = {**payload, **(next_link.get("body") or {})}
+
+    if truncated:
+        # Results arrive oldest first, so stopping early drops the *newest*
+        # acquisitions, which are exactly the ones a caller usually wants.
+        warning(
+            f"Stopped reading the catalogue after {max_pages} pages, so the most "
+            f"recent acquisitions were not seen. Narrow the search with a shorter "
+            f"search_days or a smaller area, or raise max_pages."
+        )
     return features
 
 
@@ -420,10 +436,18 @@ def download_imagery(
         cols = slice(tile["col_off"], tile["col_off"] + tile["width"])
         mosaic[:, rows, cols] = data
 
-    if not mosaic[3].any():
+    covered = float((mosaic[3] > 0).mean())
+    if covered == 0.0:
         warning(
             f"The imagery returned for {date} is empty. The area may lie outside "
             f"the Digital Earth Sweden coverage, or have no acquisition that day."
+        )
+    elif covered < COVERAGE_WARNING_THRESHOLD:
+        # A partly covered mosaic looks like a normal image with transparent
+        # patches, so say so rather than letting it pass for a complete one.
+        warning(
+            f"Only {covered:.0%} of the requested area has imagery for {date}; the "
+            f"rest is transparent. The acquisition may not span the whole area."
         )
 
     # The mosaic is anchored at its top left corner, which is (xmin, ymax).

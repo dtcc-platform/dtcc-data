@@ -266,3 +266,88 @@ def test_download_imagery_rejects_unknown_style():
 def test_download_imagery_rejects_inverted_bounds():
     with pytest.raises(ValueError, match="Invalid bounds"):
         digitalearth.download_imagery((325000, 6402000, 317000, 6394000), date="2026-05-05")
+
+
+def test_stac_search_all_warns_when_page_limit_is_hit(monkeypatch):
+    # Results arrive oldest first, so stopping early loses the newest
+    # acquisitions silently unless the truncation is reported.
+    page = {
+        "features": [{"id": "x"}],
+        "links": [{"rel": "next", "href": "https://example/stac/search", "body": {"_o": 1}}],
+    }
+
+    class EndlessSession:
+        def post(self, url, json=None, timeout=None):
+            return JsonResponse(page)
+
+    warnings = []
+    monkeypatch.setattr(digitalearth, "warning", warnings.append)
+
+    features = digitalearth._stac_search_all(EndlessSession(), {}, max_pages=3)
+
+    assert len(features) == 3
+    assert len(warnings) == 1
+    assert "3 pages" in warnings[0]
+
+
+def test_stac_search_all_does_not_warn_when_results_run_out(monkeypatch):
+    pages = [
+        {
+            "features": [{"id": "a"}],
+            "links": [{"rel": "next", "href": "https://example/stac/search", "body": {"_o": 1}}],
+        },
+        {"features": [{"id": "b"}], "links": []},
+    ]
+
+    class PagingSession:
+        def __init__(self):
+            self.count = 0
+
+        def post(self, url, json=None, timeout=None):
+            self.count += 1
+            return JsonResponse(pages[self.count - 1])
+
+    warnings = []
+    monkeypatch.setattr(digitalearth, "warning", warnings.append)
+
+    digitalearth._stac_search_all(PagingSession(), {}, max_pages=10)
+    assert warnings == []
+
+
+def _stub_download(monkeypatch, tmp_path, alpha_fraction):
+    """Wire download_imagery up to tiles with a given fraction of coverage."""
+    monkeypatch.setattr(digitalearth, "CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(digitalearth, "create_retry_session", lambda: object())
+    monkeypatch.setattr(digitalearth, "get_map", lambda *a, **k: b"")
+
+    def fake_tile(png_bytes, width, height):
+        data = np.zeros((4, height, width), dtype=np.uint8)
+        opaque_rows = int(round(height * alpha_fraction))
+        data[:, :opaque_rows, :] = 255
+        return data
+
+    monkeypatch.setattr(digitalearth, "_tile_to_array", fake_tile)
+
+    warnings = []
+    monkeypatch.setattr(digitalearth, "warning", warnings.append)
+    return warnings
+
+
+def test_download_imagery_warns_on_partial_coverage(monkeypatch, tmp_path):
+    warnings = _stub_download(monkeypatch, tmp_path, alpha_fraction=0.5)
+    digitalearth.download_imagery((0, 0, 1000, 1000), date="2026-05-05")
+    assert len(warnings) == 1
+    assert "50%" in warnings[0]
+
+
+def test_download_imagery_warns_when_empty(monkeypatch, tmp_path):
+    warnings = _stub_download(monkeypatch, tmp_path, alpha_fraction=0.0)
+    digitalearth.download_imagery((0, 0, 1000, 1000), date="2026-05-05")
+    assert len(warnings) == 1
+    assert "is empty" in warnings[0]
+
+
+def test_download_imagery_quiet_on_full_coverage(monkeypatch, tmp_path):
+    warnings = _stub_download(monkeypatch, tmp_path, alpha_fraction=1.0)
+    digitalearth.download_imagery((0, 0, 1000, 1000), date="2026-05-05")
+    assert warnings == []
