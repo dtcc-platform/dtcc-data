@@ -5,13 +5,15 @@ import getpass
 from dtcc_data.overpass import get_roads_for_bbox, get_buildings_for_bbox
 from dtcc_data.geopkg import download_tiles
 from dtcc_data.lidar import download_lidar
+from dtcc_data.digitalearth import download_imagery as _download_imagery
 from dtcc_core import io
 from dtcc_core.model import Bounds
 from .logging import info, warning, debug, error
 
-# We'll allow "lidar" or "roads" or "footprints" for data_type, and "dtcc" or "OSM" for provider.
-valid_types = ["lidar", "roads", "footprints"]
-valid_providers = ["dtcc", "OSM"]
+# We'll allow "lidar", "roads", "footprints" or "imagery" for data_type, and
+# "dtcc", "OSM" or "DES" (Digital Earth Sweden) for provider.
+valid_types = ["lidar", "roads", "footprints", "imagery"]
+valid_providers = ["dtcc", "OSM", "DES"]
 
 # We'll keep a single global SSH client in memory
 SSH_CLIENT = None
@@ -85,14 +87,15 @@ def _ssh_connect_if_needed():
 
     # print("SSH authenticated with data.dtcc.chalmers.se (no SFTP).")
 
-def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', url = 'http://compute.dtcc.chalmers.se'):
+def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', url = 'http://compute.dtcc.chalmers.se', **kwargs):
     """
     A wrapper for downloading data, but with a dummy step for actual file transfer.
     If provider='dtcc', we do an SSH-based authentication check and then simulate a download.
     If provider='OSM', we just do a dummy download with no SSH.
 
-    :param data_type: 'lidar' or 'roads' or 'footprints'
-    :param provider: 'dtcc' or 'OSM'
+    :param data_type: 'lidar', 'roads', 'footprints' or 'imagery'
+    :param provider: 'dtcc', 'OSM' or 'DES'
+    :param kwargs: extra provider specific options, see download_imagery
     :return: dict with info about the (dummy) download
     """
     # Ensure user provided bounding box is a dtcc.Bounds object.
@@ -130,6 +133,16 @@ def download_data(data_type: str, provider: str, bounds: Bounds, epsg = '3006', 
             error("Incorrect data type.")
         return
 
+    elif provider == "DES":
+        if data_type == 'imagery':
+            info("Starting the imagery download from Digital Earth Sweden")
+            filename = _download_imagery(bounds.tuple, **kwargs)
+            raster = io.load_raster(filename)
+            return raster
+        else:
+            error("Digital Earth Sweden only provides imagery.")
+        return
+
     else:  
         if data_type == 'footprints':
             info("Starting footprints files download from OSM source")
@@ -162,5 +175,19 @@ def download_footprints(bounds: Bounds, provider = 'dtcc', epsg = '3006'):
 def download_roadnetwork(bounds: Bounds, provider = 'dtcc', epsg='3006'):
     if provider and provider.upper() == 'OSM':
         download_data('roads', "OSM", bounds, epsg=epsg)
+    else:
+        error("Please enter a valid provider")
+
+def download_imagery(bounds: Bounds, provider = 'DES', epsg = '3006', **kwargs):
+    """
+    Download Sentinel-2 satellite imagery for 'bounds' as a dtcc Raster.
+
+    Without a 'date' the most recent acquisition with less than 'max_cloud'
+    percent cloud cover is used, since over Sweden the latest image is very
+    often solid cloud. See dtcc_data.digitalearth.download_imagery for the
+    full set of options.
+    """
+    if not provider or provider.upper() == 'DES':
+        return download_data('imagery', 'DES', bounds, epsg=epsg, **kwargs)
     else:
         error("Please enter a valid provider")
