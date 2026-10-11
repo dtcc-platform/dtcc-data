@@ -43,8 +43,12 @@ does not change the shared pool's defaults or footprint queries.
 The selection validator rejects multiple selected files for any nominal tile.
 Ingestion validates before each batch commit and at completion. A failed batch
 is rolled back when the command closes its connection; previously committed
-valid batches remain. New survey families require an explicit policy decision
-if they conflict with selected files. Do not bypass a failed check.
+valid batches remain. The run stops at the conflicting batch, so later files
+are not ingested until the conflict is resolved. New survey families require
+an explicit policy decision if they conflict with selected files. Do not
+bypass a failed check. A new non-`23S001` survey sharing a suffix with a
+`23S001` singleton replaces it in discovery without failing this check; the
+check enforces one selected file per tile, not approval of survey changes.
 Run one ingestion at a time; this validation is not a database uniqueness constraint.
 
 ## Release order
@@ -79,5 +83,7 @@ Existing databases must complete the migration first.
 
 Run ordinary tests with `PYTHONPATH=src pytest tests/test_db.py tests/test_server.py`.
 Set `DTCC_TEST_DATABASE_URL` to a disposable PostGIS database to enable
-`tests/test_lidar_postgis.py`. These tests use temporary tables and verify
-selection, rejected ingestion, and restoration of JIT on success and failure.
+`tests/test_lidar_postgis.py`. Test data uses temporary tables, but the ingestion
+setup test also creates a permanent `public.lidar_tiles` table if absent. Use
+only a disposable database. The tests verify selection, rejected ingestion,
+and restoration of JIT on success and failure.
