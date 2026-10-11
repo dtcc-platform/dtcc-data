@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS lidar_tiles (
     bbox GEOMETRY(POLYGON, 3006) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_lidar_tiles_bbox ON lidar_tiles USING GIST (bbox);
+CREATE INDEX IF NOT EXISTS idx_lidar_tiles_survey_suffix
+    ON lidar_tiles ((substring(filename FROM position('_' IN filename))));
 
 -- GPKG tile metadata (replaces tiles_atlas.json)
 CREATE TABLE IF NOT EXISTS gpkg_tiles (

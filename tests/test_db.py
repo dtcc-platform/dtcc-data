@@ -13,6 +13,7 @@ async def test_query_lidar_tiles():
     ]
     mock_conn = AsyncMock()
     mock_conn.fetch = AsyncMock(return_value=mock_records)
+    mock_conn.transaction = MagicMock()
 
     mock_pool = MagicMock()
     mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -26,6 +27,7 @@ async def test_query_lidar_tiles():
     assert results[0]["filename"] == "tile_267000_6519000.laz"
     assert results[1]["xmin"] == 268000
     mock_conn.fetch.assert_called_once()
+    mock_conn.execute.assert_awaited_once_with("SET LOCAL jit = off")
 
 
 @pytest.mark.asyncio
@@ -55,6 +57,7 @@ async def test_query_lidar_tiles_empty():
     """query_lidar_tiles returns empty list when no tiles match."""
     mock_conn = AsyncMock()
     mock_conn.fetch = AsyncMock(return_value=[])
+    mock_conn.transaction = MagicMock()
 
     mock_pool = MagicMock()
     mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
