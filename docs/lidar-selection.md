@@ -63,6 +63,8 @@ of the running working tree. The following commands require the existing
    autocommit. Stop on any error. If the index already exists, verify its
    definition and `pg_index.indisvalid` before proceeding; do not assume an
    interrupted concurrent build produced a valid index.
+   If this index is invalid, drop it and rerun the migration to rebuild it
+   before deploying; `IF NOT EXISTS` in the setup paths does not repair it.
 2. Run `python src/create-atlas-lidar.py --check-only` from the reviewed checkout.
    A duplicate raises an error and exits nonzero. This check is read-only.
 3. Deploy the exact reviewed commit hash and restart the service. Verify both

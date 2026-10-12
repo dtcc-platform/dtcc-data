@@ -52,6 +52,7 @@ async def lidar_pool(request, monkeypatch):
                 ("23S001_001_00_0000.laz", 20),
                 ("23S001_002_00_0000.laz", 40),
                 ("bare", 60),
+                # Preserve reference-selection behavior for names without an underscore.
                 ("23S001bare", 60),
             ])
         monkeypatch.setattr(db, "_pool", pool)
