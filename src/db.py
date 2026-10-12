@@ -7,6 +7,8 @@ from typing import Any
 
 import asyncpg
 
+from lidar_selection import LIDAR_SELECTION
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "2"))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "10"))
@@ -44,15 +46,19 @@ async def query_lidar_tiles(
 ) -> list[dict[str, Any]]:
     """Find LiDAR tiles intersecting the given bbox (EPSG:3006)."""
     pool = _get_pool()
-    sql = """
+    sql = f"""
         SELECT filename,
                origin_x AS xmin, origin_y AS ymin,
                origin_x + width AS xmax, origin_y + height AS ymax
         FROM lidar_tiles
         WHERE bbox && ST_MakeEnvelope($1, $2, $3, $4, 3006)
+          AND {LIDAR_SELECTION}
     """
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, xmin, ymin, xmax, ymax)
+        async with conn.transaction():
+            # The planner overestimates sibling probes and triggers costly JIT.
+            await conn.execute("SET LOCAL jit = off")
+            rows = await conn.fetch(sql, xmin, ymin, xmax, ymax)
     return [dict(r) for r in rows]
 
 

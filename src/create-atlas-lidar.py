@@ -8,6 +8,8 @@ import argparse
 import laspy
 import psycopg2
 
+from lidar_selection import validate_lidar_selection
+
 
 def round_width_height(value: int) -> int:
     """Round up if the integer ends with '99', e.g. 2499 -> 2500."""
@@ -35,6 +37,10 @@ def create_tables(conn):
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_lidar_tiles_bbox
             ON lidar_tiles USING GIST (bbox);
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_lidar_tiles_survey_suffix
+            ON lidar_tiles ((substring(filename FROM position('_' IN filename))));
         """)
     conn.commit()
 
@@ -137,8 +143,12 @@ def _ingest_files(laz_files, read_header_fn, conn, name_fn=None):
             if inserted % 10 == 0:
                 print(f"  ingested {inserted}/{len(to_ingest)}...", flush=True)
             if inserted % 500 == 0:
+                validate_lidar_selection(conn)
                 conn.commit()
 
+    validate_lidar_selection(conn)
+    with conn.cursor() as cur:
+        cur.execute("ANALYZE lidar_tiles")
     conn.commit()
     print(f"Ingested {inserted} new tiles, {len(existing)} already existed.")
 
@@ -153,21 +163,29 @@ def main():
                         help="PostgreSQL connection string (or set DATABASE_URL env var)")
     parser.add_argument("--create-tables", action="store_true",
                         help="Create tables if they don't exist")
+    parser.add_argument("--check-only", action="store_true",
+                        help="Check selected surveys without ingesting files")
     args = parser.parse_args()
 
-    if not args.s3_bucket and not args.directory:
+    if args.check_only and (args.s3_bucket or args.directory or args.create_tables):
+        parser.error("--check-only cannot be combined with ingestion or table creation")
+    if not args.check_only and not args.s3_bucket and not args.directory:
         parser.error("either directory or --s3-bucket is required")
     if not args.database_url:
         parser.error("--database-url or DATABASE_URL env var is required")
 
     conn = psycopg2.connect(args.database_url)
     try:
+        if args.check_only:
+            conn.set_session(readonly=True)
         if args.create_tables:
             create_tables(conn)
         if args.s3_bucket:
             ingest_laz_from_s3(args.s3_bucket, args.s3_prefix, args.s3_region, conn)
-        else:
+        elif args.directory:
             ingest_laz_directory(args.directory, conn)
+        validate_lidar_selection(conn)
+        print("LiDAR selection check passed.")
     finally:
         conn.close()
 
