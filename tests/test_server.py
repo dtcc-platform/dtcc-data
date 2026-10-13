@@ -6,14 +6,19 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     """Create a TestClient with mocked DB pool."""
-    with patch("db._pool", MagicMock()):
+    with patch("db._pool", MagicMock()), \
+         patch("db.init_pool", new_callable=AsyncMock), \
+         patch("db.close_pool", new_callable=AsyncMock):
         import server as server_mod
         importlib.reload(server_mod)
+        # Limiter lifecycle/enforcement has separate async and real-process tests.
+        monkeypatch.setattr(server_mod, "ENABLE_RATE_LIMIT", False)
         from fastapi.testclient import TestClient
         app = server_mod.create_app()
-        yield TestClient(app, raise_server_exceptions=True)
+        with TestClient(app, raise_server_exceptions=True) as test_client:
+            yield test_client
 
 
 def test_healthz(client):
@@ -109,14 +114,17 @@ def test_lidar_file_s3_redirect():
     mock_s3.generate_presigned_url.return_value = "https://my-bucket.s3.amazonaws.com/laz/tile.laz?signed"
 
     with patch("db._pool", MagicMock()), \
+         patch("db.init_pool", new_callable=AsyncMock), \
+         patch("db.close_pool", new_callable=AsyncMock), \
+         patch("server.ENABLE_RATE_LIMIT", False), \
          patch("server.S3_BUCKET", "my-bucket"), \
          patch("server.S3_LAZ_PREFIX", "laz/"), \
          patch("server._get_s3_client", return_value=mock_s3):
         import server as server_mod
         from fastapi.testclient import TestClient
         app = server_mod.create_app()
-        client = TestClient(app, raise_server_exceptions=True)
-        resp = client.get("/files/lidar/tile.laz", follow_redirects=False)
+        with TestClient(app, raise_server_exceptions=True) as client:
+            resp = client.get("/files/lidar/tile.laz", follow_redirects=False)
 
     assert resp.status_code == 307
     assert "my-bucket" in resp.headers["location"]
