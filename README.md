@@ -102,6 +102,10 @@ Tests using `TestClient` must enter its context to run startup and shutdown.
 Direct users of `create_rate_limit_middleware()` must call the returned
 middleware's `shutdown()` when finished. Per-client and global limits are unchanged.
 
+If the main server is killed before lifespan cleanup (for example, by `SIGKILL`),
+a surviving Manager can still delay restart until systemd's stop timeout
+(90 seconds on the recorded backend).
+
 ## Authors (in order of appearance)
 
 * [Dag Wästerberg](https://chalmersindustriteknik.se/sv/medarbetare/dag-wastberg/)

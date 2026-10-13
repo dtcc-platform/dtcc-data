@@ -105,6 +105,8 @@ def create_app() -> FastAPI:
     # Rate limiter
     if use_rate_limit:
         async def rate_limit(request, call_next):
+            if rate_mw is None:
+                raise RuntimeError("Rate limiter not started; run the application lifespan")
             return await rate_mw(request, call_next)
 
         app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit)

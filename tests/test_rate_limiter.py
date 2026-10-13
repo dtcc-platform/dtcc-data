@@ -10,6 +10,15 @@ import server
 
 
 @pytest.mark.asyncio
+async def test_request_without_lifespan_reports_missing_startup(monkeypatch):
+    monkeypatch.setattr(server, "ENABLE_RATE_LIMIT", True)
+    app = server.create_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        with pytest.raises(RuntimeError, match="Rate limiter not started; run the application lifespan"):
+            await client.get("/healthz")
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["none", "startup", "shutdown"])
 async def test_lifespan_closes_manager_even_on_database_failure(monkeypatch, failure):
     baseline = {p.pid for p in multiprocessing.active_children()}
