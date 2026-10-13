@@ -80,6 +80,28 @@ See [DEPLOY.md](DEPLOY.md) for full instructions on provisioning and configuring
 python -m pytest tests/ -v
 ```
 
+The focused server suite runs without PostGIS, AWS credentials or real datasets:
+
+```bash
+python -m pip install -r tests/requirements-server.txt
+PYTHONPATH=src python -B -m pytest -o asyncio_default_fixture_loop_scope=function \
+  tests/test_server_shutdown.py tests/test_rate_limiter.py \
+  tests/test_server.py tests/test_db.py -v
+```
+
+The [Server tests workflow](.github/workflows/server-tests.yml) runs this suite
+on Linux with Python 3.12. The SIGTERM regression starts real Uvicorn with the
+real server and limiter, replacing only the database. It requires both the
+server and its Manager child to exit, including when database cleanup fails.
+That process check is skipped on non-Linux hosts; the other lifecycle and
+rate-limit checks still run.
+
+The application lifespan owns the rate limiter's Manager: it starts at startup
+and closes after requests drain, even if database startup or cleanup fails.
+Tests using `TestClient` must enter its context to run startup and shutdown.
+Direct users of `create_rate_limit_middleware()` must call the returned
+middleware's `shutdown()` when finished. Per-client and global limits are unchanged.
+
 ## Authors (in order of appearance)
 
 * [Dag Wästerberg](https://chalmersindustriteknik.se/sv/medarbetare/dag-wastberg/)

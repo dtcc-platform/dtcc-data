@@ -11,6 +11,8 @@ def create_rate_limit_middleware(request_limit=100, time_window=60, global_reque
     Returns a rate_limit_middleware function that uses multiprocessing.Manager() 
     structures to share data across multiple workers. The manager, dictionary, lists, 
     and lock are created once so all workers use the same objects.
+    Call the returned middleware's shutdown() after requests have drained to stop
+    its manager process; signal-based server exits can bypass Python finalizers.
     """
     from multiprocessing import Manager, Lock  # import here to avoid double-init in some setups
 
@@ -74,4 +76,5 @@ def create_rate_limit_middleware(request_limit=100, time_window=60, global_reque
         response = await call_next(request)
         return response
 
+    rate_limit_middleware.shutdown = manager.shutdown
     return rate_limit_middleware

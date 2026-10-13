@@ -1,0 +1,9 @@
+# Runtime versions used to reproduce the deployed server's shutdown failure.
+uvicorn==0.41.0
+fastapi==0.115.6
+starlette==0.41.3
+anyio==4.12.1
+asyncpg==0.30.0
+pytest==8.3.5
+pytest-asyncio==0.25.3
+httpx==0.28.1

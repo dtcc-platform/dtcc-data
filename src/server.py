@@ -77,22 +77,37 @@ def safe_join(base_dir: str, filename: str) -> str:
 
 # --- App factory ---
 def create_app() -> FastAPI:
+    use_rate_limit = create_rate_limit_middleware is not None and ENABLE_RATE_LIMIT
+    rate_mw = None
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        await db.init_pool()
-        yield
-        await db.close_pool()
+        nonlocal rate_mw
+        if use_rate_limit:
+            rate_mw = create_rate_limit_middleware(
+                request_limit=RATE_REQ_LIMIT,
+                time_window=RATE_TIME_WINDOW,
+                global_request_limit=RATE_GLOBAL_LIMIT,
+            )
+        try:
+            await db.init_pool()
+            yield
+        finally:
+            try:
+                await db.close_pool()
+            finally:
+                if rate_mw is not None:
+                    rate_mw.shutdown()
+                    rate_mw = None
 
     app = FastAPI(title="DTCC Tile Server", lifespan=lifespan)
 
     # Rate limiter
-    if create_rate_limit_middleware is not None and ENABLE_RATE_LIMIT:
-        rate_mw = create_rate_limit_middleware(
-            request_limit=RATE_REQ_LIMIT,
-            time_window=RATE_TIME_WINDOW,
-            global_request_limit=RATE_GLOBAL_LIMIT,
-        )
-        app.add_middleware(BaseHTTPMiddleware, dispatch=rate_mw)
+    if use_rate_limit:
+        async def rate_limit(request, call_next):
+            return await rate_mw(request, call_next)
+
+        app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit)
 
     # --- Health / root ---
     @app.get("/healthz")
