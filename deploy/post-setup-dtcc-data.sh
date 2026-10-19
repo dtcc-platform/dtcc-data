@@ -5,7 +5,8 @@
 # Expects deploy.env variables to already be available (S3_BUCKET, DB_NAME, etc.)
 set -euo pipefail
 
-DB_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
+# aws-setup.sh exports DATABASE_URL; the atlas scripts read it from the environment
+: "${DATABASE_URL:?DATABASE_URL must be set}"
 
 # --- Sync GPKG data from S3 ---
 if [ -n "${S3_BUCKET:-}" ]; then
@@ -32,7 +33,6 @@ if [ -n "${S3_BUCKET:-}" ]; then
         --s3-bucket "$S3_BUCKET" \
         --s3-prefix "${S3_LAZ_PREFIX:-laz/}" \
         --s3-region "${S3_REGION:-eu-north-1}" \
-        --database-url "$DB_URL" \
         --create-tables
 fi
 
@@ -40,7 +40,6 @@ fi
 if ls /data/gpkg/*.gpkg 1>/dev/null 2>&1; then
     echo "Ingesting GPKG tiles..."
     python src/create-atlas-gpkg.py /data/gpkg/ \
-        --database-url "$DB_URL" \
         --create-tables \
         --workers 0
 else

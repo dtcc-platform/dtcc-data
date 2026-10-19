@@ -102,7 +102,9 @@ Leave `DB_NAME` empty to skip PostgreSQL installation and database setup entirel
 |----------|---------|-------------|
 | `DB_NAME` | *(empty)* | Database name. Empty = no DB |
 | `DB_USER` | `dtcc` | Database user |
-| `DB_PASS` | *(none)* | Database password; required when `DB_NAME` is set. Use letters and digits only: setup inserts it unescaped into SQL and `DATABASE_URL` |
+| `DB_PASS` | *(none)* | Database password, letters and digits only. Needed until `/etc/<APP_NAME>/database.env` exists; once it does, setup uses that file, and a different `DB_PASS` stops setup |
+
+Setup keeps `DATABASE_URL` in the root-only file `/etc/<APP_NAME>/database.env` (mode 0600), which the service loads with `EnvironmentFile=`. Setup never overwrites that file. If the database role already exists, `DB_PASS` must log in as it before the file is written.
 
 ### Optional: Systemd Extra Env Vars
 
@@ -230,7 +232,7 @@ sudo systemctl stop <APP_NAME>
 sudo systemctl status postgresql
 
 # Connect to database
-PGPASSWORD=<DB_PASS> psql -h localhost -U <DB_USER> -d <DB_NAME>
+sudo -u postgres psql -d <DB_NAME>
 ```
 
 ## S3 Bucket Structure
@@ -251,8 +253,8 @@ Instead of syncing from S3, you can download data directly from Lantmateriet's G
 cd ~/dtcc-data && source .venv/bin/activate
 
 # Download and ingest (full pipeline)
-python src/download-geotorget.py <order-uuid> \
-  --database-url postgresql://dtcc:<password>@localhost:5432/dtcc_data
+export DATABASE_URL="$(sudo python3 -I deploy/db-env.py read /etc/dtcc-data/database.env dtcc dtcc_data)"
+python src/download-geotorget.py <order-uuid>
 
 # Download only (no ingestion)
 python src/download-geotorget.py <order-uuid> --output-dir /data --no-ingest
@@ -262,7 +264,7 @@ python src/download-geotorget.py <order-uuid> --output-dir /data --no-ingest
 |----------|----------|---------|-------------|
 | `ORDER_ID` | Yes | -- | Geotorget order UUID |
 | `--output-dir` | No | `/data` | Base directory for `laz/` and `gpkg/` subdirs |
-| `--database-url` | No | `$DATABASE_URL` | PostGIS connection string |
+| `--database-url` | No | `$DATABASE_URL` | PostGIS connection string. Prefer `DATABASE_URL`: arguments are visible to other local users |
 | `--no-ingest` | No | false | Skip PostGIS ingestion after download |
 
 You can find your order IDs at https://geotorget.lantmateriet.se/mitt-konto/arende.

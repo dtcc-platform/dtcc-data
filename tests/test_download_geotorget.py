@@ -230,3 +230,19 @@ class TestDownloadFile:
                     path = geotorget_module.download_file("abc-123", "/path", "f.zip", tmpdir, max_retries=3)
 
             assert os.path.exists(path)
+
+
+# --- Ingestion test ---
+
+
+class TestRunIngestion:
+    def test_passes_database_url_by_environment(self, geotorget_module):
+        url = "postgresql://dtcc:Secret123@localhost:5432/dtcc_data"
+        with patch.object(geotorget_module.subprocess, "run") as run:
+            geotorget_module.run_ingestion("/data", url, laz_count=1, gpkg_count=1)
+
+        assert run.call_count == 2
+        for args, kwargs in run.call_args_list:
+            assert "--database-url" not in args[0]
+            assert not any("Secret123" in arg for arg in args[0])
+            assert kwargs["env"]["DATABASE_URL"] == url
