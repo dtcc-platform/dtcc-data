@@ -32,4 +32,4 @@ jobs:
           python -B -m pytest -o asyncio_default_fixture_loop_scope=function
           tests/test_server_shutdown.py tests/test_rate_limiter.py
           tests/test_server.py tests/test_db.py tests/test_db_env.py
-          tests/test_aws_setup.py -v
+          tests/test_aws_setup.py tests/test_download_geotorget.py -v

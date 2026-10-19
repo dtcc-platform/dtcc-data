@@ -5,6 +5,8 @@ database step then runs against fake sudo, psql and pg_isready for each
 role/credential-file case. Fake sudo maps /etc to a temporary root.
 """
 
+import base64
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -35,7 +37,7 @@ esac
 exit 99
 """,
     "psql": r"""#!/bin/sh
-echo "psql $*" >> "$ARGV_LOG"
+echo "psql $* | env: $(env | sed -n 's/^\(PG[A-Z]*\)=.*/\1/p' | sort | tr '\n' ' ')" >> "$ARGV_LOG"
 case "$*" in
   *require_auth=scram-sha-256*) [ "$PGPASSWORD" = "$ROLE_PASS" ]; exit $? ;;
   *-tc*) echo 1; exit 0 ;;
@@ -43,12 +45,20 @@ esac
 sql=$(cat)
 case "$sql" in
   *"FROM pg_roles"*) [ -n "$ROLE_PASS" ] && echo 1; exit 0 ;;
-  *"CREATE ROLE"*) printf '%s\n' "$sql" > "$ROOT/create-role.sql" ;;
+  *"CREATE ROLE"*) printf '%s\n' "$sql" > "$ROOT/create-role.sql"
+    [ -z "$FAIL_CREATE" ] || { echo "psql: ERROR:  simulated failure" >&2; exit 3; } ;;
 esac
 exit 0
 """,
     "pg_isready": "#!/bin/sh\nexit 0\n",
 }
+
+
+def db_env():
+    spec = importlib.util.spec_from_file_location("db_env", REPO / "deploy" / "db-env.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def fake_bin(tmp):
@@ -60,23 +70,29 @@ def fake_bin(tmp):
     return path
 
 
-def render(tmp, db_pass):
-    """Run aws-setup.sh locally and return the captured remote steps by role."""
+def run_setup(tmp, db_pass, db_user="dtcc"):
+    """Run aws-setup.sh locally; return the result and the captured remote steps."""
     deploy = tmp / "repo" / "deploy"
     deploy.mkdir(parents=True)
     for name in ("aws-setup.sh", "db-env.py", "post-setup-dtcc-data.sh"):
         shutil.copy(REPO / "deploy" / name, deploy / name)
     (deploy / "deploy.env").write_text(
         "REPO_URL=https://example.invalid/repo.git\nDB_NAME=dtcc_data\nDB_PASS=%s\n"
-        "POST_SETUP_SCRIPT=deploy/post-setup-dtcc-data.sh\n" % db_pass)
+        "DB_USER=%s\nPOST_SETUP_SCRIPT=deploy/post-setup-dtcc-data.sh\n" % (db_pass, db_user))
     (deploy / ".env.aws").write_text("KEY_FILE=/dev/null\nPUBLIC_IP=192.0.2.1\n")
     capture = tmp / "capture"
     capture.mkdir()
     env = {**os.environ, "PATH": "%s:%s" % (fake_bin(tmp), os.environ["PATH"]),
            "CAPTURE": str(capture)}
-    subprocess.run(["bash", str(deploy / "aws-setup.sh")], env=env, check=True,
-                   capture_output=True, stdin=subprocess.DEVNULL)
-    scripts = [p.read_text() for p in capture.iterdir()]
+    result = subprocess.run(["bash", str(deploy / "aws-setup.sh")], env=env,
+                            capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    return result, [p.read_text() for p in capture.iterdir()]
+
+
+def render(tmp, db_pass):
+    """Return the captured remote steps of a successful local run, by role."""
+    result, scripts = run_setup(tmp, db_pass)
+    assert result.returncode == 0, result.stderr
     markers = {"db": "Decide from the role", "post": "Pass DATABASE_URL", "unit": "[Service]"}
     return {key: next(s for s in scripts if marker in s) for key, marker in markers.items()}
 
@@ -91,7 +107,7 @@ def without_pass(tmp_path_factory):
     return render(tmp_path_factory.mktemp("without-pass"), "")
 
 
-def run_db_step(tmp, script, role_pass, file_pass=None):
+def run_db_step(tmp, script, role_pass, file_pass=None, **extra_env):
     """Run the captured database step; role_pass empty means the role is absent."""
     root = tmp / "root"
     (root / "etc").mkdir(parents=True)
@@ -105,12 +121,13 @@ def run_db_step(tmp, script, role_pass, file_pass=None):
     argv_log = tmp / "argv.log"
     env = {**os.environ, "PATH": "%s:%s" % (fake_bin(tmp), os.environ["PATH"]),
            "ROOT": str(root), "ARGV_LOG": str(argv_log), "ROLE_PASS": role_pass,
-           "PYTHON": sys.executable, "HOME": str(tmp)}
+           "PYTHON": sys.executable, "HOME": str(tmp), **extra_env}
     result = subprocess.run(["bash", str(tmp / "step.sh")], env=env, capture_output=True,
                             text=True, stdin=subprocess.DEVNULL)
     argv = argv_log.read_text()
     assert PASSWORD not in argv and OTHER not in argv
-    assert PASSWORD not in result.stdout and OTHER not in result.stdout
+    for text in (result.stdout, result.stderr):
+        assert PASSWORD not in text and OTHER not in text
     content = env_file.read_text() if env_file.exists() else None
     created = root / "create-role.sql"
     return result, content, created.read_text() if created.exists() else None
@@ -123,8 +140,11 @@ def url_line(password):
 def test_new_role_and_file(tmp_path, with_pass):
     result, content, created = run_db_step(tmp_path, with_pass["db"], role_pass="")
     assert result.returncode == 0, result.stderr
-    assert created == ("SET log_statement = 'none';\nSET log_min_error_statement = 'panic';\n"
-                       "CREATE ROLE :\"role\" LOGIN PASSWORD '%s';\n" % PASSWORD)
+    head, verifier = created.rsplit("CREATE ROLE :\"role\" LOGIN PASSWORD '", 1)
+    assert head == "SET log_statement = 'none';\nSET log_min_error_statement = 'panic';\n"
+    verifier = verifier[:-len("';\n")]
+    salt = base64.b64decode(verifier.split("$")[1].split(":")[1])
+    assert verifier == db_env().verifier(PASSWORD, salt=salt)
     assert content == url_line(PASSWORD)
 
 
@@ -176,3 +196,24 @@ def test_unit_and_post_setup_keep_the_password_out(with_pass):
     assert "DATABASE_URL" not in unit and PASSWORD not in unit
     assert "read /etc/dtcc-data/database.env dtcc dtcc_data" in post
     assert "DB_PASS" not in post and PASSWORD not in post and "--database-url" not in post
+
+
+def test_login_ignores_ambient_libpq_settings(tmp_path, with_pass):
+    result, content, _ = run_db_step(tmp_path, with_pass["db"], PASSWORD, PGHOSTADDR="192.0.2.9",
+                                     PGSERVICE="other", PGHOST="db.example", PGPORT="6543")
+    assert result.returncode == 0, result.stderr
+    logins = [l for l in (tmp_path / "argv.log").read_text().splitlines() if "require_auth" in l]
+    assert logins and all("hostaddr=127.0.0.1" in l for l in logins)
+    assert all(l.endswith("env: PGPASSFILE PGPASSWORD PGSERVICEFILE PGSYSCONFDIR ") for l in logins)
+
+
+def test_failed_role_creation_writes_nothing(tmp_path, with_pass):
+    result, content, created = run_db_step(tmp_path, with_pass["db"], "", FAIL_CREATE="1")
+    assert result.returncode != 0 and created is not None and content is None
+
+
+@pytest.mark.parametrize("db_pass, db_user", [("x" * 129, "dtcc"), ("pa-ss", "dtcc"),
+                                              (PASSWORD, "Dtcc"), (PASSWORD, "dtcc-user")])
+def test_invalid_inputs_stop_before_the_host(tmp_path, db_pass, db_user):
+    result, scripts = run_setup(tmp_path, db_pass, db_user)
+    assert result.returncode == 1 and scripts == []

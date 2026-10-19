@@ -1,8 +1,13 @@
 """Tests for deploy/db-env.py, the root-only database credential file helper."""
 
+import base64
+import hashlib
+import hmac
 import importlib.util
 import io
 import os
+import subprocess
+import sys
 
 import pytest
 
@@ -102,3 +107,43 @@ def test_read_refuses_wrong_owner(dbenv, path, monkeypatch, capsys):
 ])
 def test_refuses_bad_arguments(dbenv, monkeypatch, capsys, argv):
     assert run(dbenv, monkeypatch, capsys, *argv)[0] == 1
+
+
+def test_read_refuses_fifo_without_blocking(tmp_path):
+    os.mkdir(tmp_path / "dtcc-data", 0o700)
+    fifo = tmp_path / "dtcc-data" / "database.env"
+    os.mkfifo(fifo, 0o600)
+    script = os.path.join(os.path.dirname(__file__), "..", "deploy", "db-env.py")
+    # A child process with the owner checks passing, so only the file type can stop it
+    code = ("import importlib.util, os, sys\n"
+            "spec = importlib.util.spec_from_file_location('db_env', sys.argv[1])\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(mod)\n"
+            "mod.UID, mod.GID = os.getuid(), os.getgid()\n"
+            "mod.main(sys.argv[2:])\n")
+    result = subprocess.run([sys.executable, "-I", "-c", code, script, "read", str(fifo), "dtcc",
+                             "dtcc_data"], capture_output=True, text=True, timeout=10)
+    assert "regular file" in result.stderr
+    assert result.returncode == 1 and result.stdout == ""
+
+
+def test_verifier_matches_rfc7677_exchange(dbenv):
+    # RFC 7677 section 3: user "user", password "pencil"
+    salt = base64.b64decode("W22ZaJ0SNY7soEsUEjb6gQ==")
+    _, keys = dbenv.verifier("pencil", salt=salt).split("$", 1)[1].split("$")
+    stored_key, server_key = (base64.b64decode(k) for k in keys.split(":"))
+    nonce = "rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0"
+    auth = ("n=user,r=rOprNGfwEbeRWgbNEkqO,r=%s,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096,c=biws,r=%s"
+            % (nonce, nonce)).encode()
+    proof = base64.b64decode("dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=")
+    client_key = bytes(a ^ b for a, b in zip(proof, hmac.new(stored_key, auth, "sha256").digest()))
+    assert hashlib.sha256(client_key).digest() == stored_key
+    assert hmac.new(server_key, auth, "sha256").digest() == base64.b64decode(
+        "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=")
+
+
+def test_verifier_command(dbenv, monkeypatch, capsys):
+    code, out, err = run(dbenv, monkeypatch, capsys, "verifier", stdin=PASSWORD)
+    assert code == 0 and out.startswith("SCRAM-SHA-256$4096:") and PASSWORD not in out
+    code, out, err = run(dbenv, monkeypatch, capsys, "verifier", stdin="x" * 129)
+    assert code == 1 and out == ""

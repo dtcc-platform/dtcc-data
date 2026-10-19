@@ -48,8 +48,14 @@ POST_SETUP_SCRIPT="${POST_SETUP_SCRIPT:-}"
 EXTRA_REPOS="${EXTRA_REPOS:-}"
 CONDA_PACKAGES="${CONDA_PACKAGES:-}"
 
-if [ -n "$DB_PASS" ] && [[ ! "$DB_PASS" =~ ^[A-Za-z0-9]+$ ]]; then
-    echo "ERROR: DB_PASS must contain letters and digits only." >&2
+# Same limits as deploy/db-env.py, checked before anything changes on the host
+if [ -n "$DB_PASS" ] && [[ ! "$DB_PASS" =~ ^[A-Za-z0-9]{1,128}$ ]]; then
+    echo "ERROR: DB_PASS must be 1-128 letters and digits." >&2
+    exit 1
+fi
+if [ -n "$DB_NAME" ] && { [[ ! "$DB_USER" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] \
+        || [[ ! "$DB_NAME" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; }; then
+    echo "ERROR: DB_USER and DB_NAME must be lowercase identifiers." >&2
     exit 1
 fi
 
@@ -216,10 +222,20 @@ $DBENV_PY
 PY
 )
 dbenv() { sudo /usr/bin/python3 -I -c "\$DBENV_PY" "\$@"; }
-# A fresh SCRAM login over loopback; the password stays out of argv
+# psql with only the given password: no PG* variables, password file or service file
+db_psql() {
+    local pw=\$1
+    shift
+    (
+        for v in \$(compgen -e); do case \$v in PG*) unset "\$v" ;; esac; done
+        PGPASSWORD="\$pw" PGPASSFILE=/dev/null PGSERVICEFILE=/dev/null PGSYSCONFDIR=/nonexistent \
+            psql -X "\$@"
+    )
+}
+# A fresh SCRAM login to 127.0.0.1; the password stays out of argv
 db_login() {
-    PGPASSWORD="\$1" PGPASSFILE=/dev/null psql -XAtq -c 'SELECT 1' \
-        "host=localhost port=5432 dbname=postgres user=$DB_USER require_auth=scram-sha-256 connect_timeout=5" > /dev/null
+    db_psql "\$1" -Atq -c 'SELECT 1' \
+        "host=localhost hostaddr=127.0.0.1 port=5432 dbname=postgres user=$DB_USER require_auth=scram-sha-256 connect_timeout=5" > /dev/null
 }
 
 # Decide from the role and the credential file before changing the database.
@@ -240,11 +256,13 @@ else
     if [ -n "\$ROLE_EXISTS" ]; then
         db_login "\$DB_PW" || fail "DB_PASS does not authenticate as the existing role $DB_USER"
     else
-        # Terse errors and no statement logging keep the password out of output and logs
-        sudo -u postgres psql -Xq -v ON_ERROR_STOP=1 -v VERBOSITY=terse -d postgres -v role=$DB_USER <<'SQL'
+        # The server receives a SCRAM verifier, never the password. Terse errors and
+        # no statement logging also keep the verifier out of output and most logs.
+        VERIFIER=\$(printf '%s' "\$DB_PW" | /usr/bin/python3 -I -c "\$DBENV_PY" verifier)
+        sudo -u postgres psql -Xq -v ON_ERROR_STOP=1 -v VERBOSITY=terse -d postgres -v role=$DB_USER <<SQL
 SET log_statement = 'none';
 SET log_min_error_statement = 'panic';
-CREATE ROLE :"role" LOGIN PASSWORD '$DB_PASS';
+CREATE ROLE :"role" LOGIN PASSWORD '\$VERIFIER';
 SQL
     fi
     printf '%s' "\$DB_PW" | dbenv write $DB_ENV_FILE $DB_USER $DB_NAME
@@ -270,7 +288,7 @@ done
 # Apply schema if it exists
 SCHEMA_FILE=~/${APP_NAME}/${WORK_DIR}/schema.sql
 if [ -f "\$SCHEMA_FILE" ]; then
-    PGPASSWORD="\$DB_PW" psql -h localhost -p 5432 -U $DB_USER -d $DB_NAME -f "\$SCHEMA_FILE"
+    db_psql "\$DB_PW" -f "\$SCHEMA_FILE" "host=localhost hostaddr=127.0.0.1 port=5432 dbname=$DB_NAME user=$DB_USER"
     echo "[OK] Schema applied"
 else
     echo "[SKIP] No schema.sql found at \$SCHEMA_FILE"
@@ -319,6 +337,8 @@ PY
 )
     DATABASE_URL=\$(sudo /usr/bin/python3 -I -c "\$DBENV_PY" read $DB_ENV_FILE $DB_USER $DB_NAME)
     export DATABASE_URL
+    # libpq would let PG* variables override parts of DATABASE_URL
+    for v in \$(compgen -e); do case \$v in PG*) unset "\$v" ;; esac; done
 fi
 
 # Activate the correct Python env

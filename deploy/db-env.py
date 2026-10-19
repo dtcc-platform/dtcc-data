@@ -5,11 +5,15 @@ Run as root by aws-setup.sh on the remote host:
 
     db-env.py read PATH USER DB    print the validated DATABASE_URL
     db-env.py write PATH USER DB   create PATH from the password on stdin
+    db-env.py verifier             print a SCRAM-SHA-256 verifier for the password on stdin
 
 The file holds exactly one line, DATABASE_URL=postgresql://USER:PASS@localhost:5432/DB.
 Errors never print the file content or the password.
 """
 
+import base64
+import hashlib
+import hmac
 import os
 import re
 import stat
@@ -25,6 +29,21 @@ def fail(message):
     sys.exit(1)
 
 
+def check_password(password):
+    if not PASSWORD.fullmatch(password):
+        fail("the database password must be 1-128 letters and digits")
+
+
+def verifier(password, salt=None, iterations=4096):
+    """Return a PostgreSQL SCRAM-SHA-256 verifier, so the server never receives the password."""
+    salt = os.urandom(16) if salt is None else salt
+    salted = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations)
+    stored_key = hashlib.sha256(hmac.new(salted, b"Client Key", "sha256").digest()).digest()
+    server_key = hmac.new(salted, b"Server Key", "sha256").digest()
+    b64 = [base64.b64encode(value).decode() for value in (salt, stored_key, server_key)]
+    return "SCRAM-SHA-256$%d:%s$%s:%s" % (iterations, b64[0], b64[1], b64[2])
+
+
 def line(user, db, password):
     return "DATABASE_URL=postgresql://%s:%s@localhost:5432/%s\n" % (user, password, db)
 
@@ -38,7 +57,8 @@ def check_dir(path):
 def read(path, user, db):
     check_dir(os.path.dirname(path))
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        # O_NONBLOCK keeps a FIFO from blocking before its type is checked
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError:
         fail("cannot open %s as a regular file" % path)
     with os.fdopen(fd, "rb") as f:
@@ -56,8 +76,7 @@ def read(path, user, db):
 
 
 def write(path, user, db, password):
-    if not PASSWORD.fullmatch(password):
-        fail("the database password must contain letters and digits only")
+    check_password(password)
     directory = os.path.dirname(path)
     os.umask(0o077)
     try:
@@ -81,8 +100,13 @@ def write(path, user, db, password):
 
 
 def main(argv):
+    if argv == ["verifier"]:
+        password = sys.stdin.read()
+        check_password(password)
+        sys.stdout.write(verifier(password))
+        return
     if len(argv) != 4 or argv[0] not in ("read", "write"):
-        fail("usage: db-env.py read|write PATH USER DB")
+        fail("usage: db-env.py read|write PATH USER DB, or db-env.py verifier")
     command, path, user, db = argv
     if not os.path.isabs(path) or not IDENT.fullmatch(user) or not IDENT.fullmatch(db):
         fail("PATH must be absolute; USER and DB must be lowercase identifiers")

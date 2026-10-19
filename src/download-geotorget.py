@@ -149,7 +149,7 @@ def extract_and_sort(download_dir: str, output_dir: str) -> tuple[int, int]:
 def run_ingestion(output_dir: str, database_url: str, laz_count: int, gpkg_count: int):
     """Run atlas creation scripts for any downloaded data."""
     script_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
-    # Pass the URL through the environment so it never appears in a process list
+    # Pass the URL through the environment to keep it out of the children's arguments
     env = {**os.environ, "DATABASE_URL": database_url}
 
     if laz_count > 0:
