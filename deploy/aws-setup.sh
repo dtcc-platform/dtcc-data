@@ -42,11 +42,16 @@ S3_LAZ_PREFIX="${S3_LAZ_PREFIX:-laz/}"
 S3_REGION="${S3_REGION:-eu-north-1}"
 DB_NAME="${DB_NAME:-}"
 DB_USER="${DB_USER:-dtcc}"
-DB_PASS="${DB_PASS:-dtcc}"
+DB_PASS="${DB_PASS:-}"
 SYSTEMD_ENV="${SYSTEMD_ENV:-}"
 POST_SETUP_SCRIPT="${POST_SETUP_SCRIPT:-}"
 EXTRA_REPOS="${EXTRA_REPOS:-}"
 CONDA_PACKAGES="${CONDA_PACKAGES:-}"
+
+if [ -n "$DB_NAME" ] && [ -z "$DB_PASS" ]; then
+    echo "ERROR: DB_PASS must be set in deploy.env when DB_NAME is set." >&2
+    exit 1
+fi
 
 SSH_OPTS="-i $KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 SSH_CMD="ssh $SSH_OPTS ubuntu@$PUBLIC_IP"
