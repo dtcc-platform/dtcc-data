@@ -48,10 +48,14 @@ POST_SETUP_SCRIPT="${POST_SETUP_SCRIPT:-}"
 EXTRA_REPOS="${EXTRA_REPOS:-}"
 CONDA_PACKAGES="${CONDA_PACKAGES:-}"
 
-if [ -n "$DB_NAME" ] && [ -z "$DB_PASS" ]; then
-    echo "ERROR: DB_PASS must be set in deploy.env when DB_NAME is set." >&2
+if [ -n "$DB_PASS" ] && [[ ! "$DB_PASS" =~ ^[A-Za-z0-9]+$ ]]; then
+    echo "ERROR: DB_PASS must contain letters and digits only." >&2
     exit 1
 fi
+
+# The service reads DATABASE_URL from this root-only file, never from the unit.
+DB_ENV_FILE="/etc/${APP_NAME}/database.env"
+DBENV_PY="$(cat "$SCRIPT_DIR/db-env.py")"
 
 SSH_OPTS="-i $KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 SSH_CMD="ssh $SSH_OPTS ubuntu@$PUBLIC_IP"
@@ -206,9 +210,46 @@ if [ -n "$DB_NAME" ]; then
     log "=== Step 3: Configure PostgreSQL + PostGIS ==="
     $SSH_CMD << REMOTE_STEP3
 set -euo pipefail
+fail() { echo "ERROR: \$*" >&2; exit 1; }
+DBENV_PY=\$(cat <<'PY'
+$DBENV_PY
+PY
+)
+dbenv() { sudo /usr/bin/python3 -I -c "\$DBENV_PY" "\$@"; }
+# A fresh SCRAM login over loopback; the password stays out of argv
+db_login() {
+    PGPASSWORD="\$1" PGPASSFILE=/dev/null psql -XAtq -c 'SELECT 1' \
+        "host=localhost port=5432 dbname=postgres user=$DB_USER require_auth=scram-sha-256 connect_timeout=5" > /dev/null
+}
 
-# Create database user and database
-sudo -u postgres psql -c "DO \\\$\\\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$DB_USER') THEN CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS'; END IF; END \\\$\\\$;"
+# Decide from the role and the credential file before changing the database.
+# An existing file is never rewritten; a missing one is created from DB_PASS.
+ROLE_EXISTS=\$(printf '%s\n' "SELECT 1 FROM pg_roles WHERE rolname = :'role';" \
+    | sudo -u postgres psql -XAtq -v ON_ERROR_STOP=1 -d postgres -v role=$DB_USER)
+if sudo test -e $DB_ENV_FILE -o -L $DB_ENV_FILE; then
+    [ -n "\$ROLE_EXISTS" ] || fail "$DB_ENV_FILE exists but role $DB_USER does not"
+    DATABASE_URL=\$(dbenv read $DB_ENV_FILE $DB_USER $DB_NAME)
+    DB_PW=\${DATABASE_URL#postgresql://$DB_USER:}
+    DB_PW=\${DB_PW%@localhost:5432/$DB_NAME}
+    [ -z "$DB_PASS" ] || [ "$DB_PASS" = "\$DB_PW" ] \
+        || fail "DB_PASS differs from $DB_ENV_FILE; remove DB_PASS from deploy.env"
+    db_login "\$DB_PW" || fail "the password in $DB_ENV_FILE does not authenticate as $DB_USER"
+else
+    [ -n "$DB_PASS" ] || fail "DB_PASS must be set in deploy.env until $DB_ENV_FILE exists"
+    DB_PW=$DB_PASS
+    if [ -n "\$ROLE_EXISTS" ]; then
+        db_login "\$DB_PW" || fail "DB_PASS does not authenticate as the existing role $DB_USER"
+    else
+        # Terse errors and no statement logging keep the password out of output and logs
+        sudo -u postgres psql -Xq -v ON_ERROR_STOP=1 -v VERBOSITY=terse -d postgres -v role=$DB_USER <<'SQL'
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
+CREATE ROLE :"role" LOGIN PASSWORD '$DB_PASS';
+SQL
+    fi
+    printf '%s' "\$DB_PW" | dbenv write $DB_ENV_FILE $DB_USER $DB_NAME
+fi
+
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER"
 sudo -u postgres psql -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
@@ -229,7 +270,7 @@ done
 # Apply schema if it exists
 SCHEMA_FILE=~/${APP_NAME}/${WORK_DIR}/schema.sql
 if [ -f "\$SCHEMA_FILE" ]; then
-    PGPASSWORD=$DB_PASS psql -h localhost -p 5432 -U $DB_USER -d $DB_NAME -f "\$SCHEMA_FILE"
+    PGPASSWORD="\$DB_PW" psql -h localhost -p 5432 -U $DB_USER -d $DB_NAME -f "\$SCHEMA_FILE"
     echo "[OK] Schema applied"
 else
     echo "[SKIP] No schema.sql found at \$SCHEMA_FILE"
@@ -263,13 +304,22 @@ set -euo pipefail
 export APP_NAME="$APP_NAME"
 export DB_NAME="${DB_NAME:-}"
 export DB_USER="${DB_USER:-}"
-export DB_PASS="${DB_PASS:-}"
 export S3_BUCKET="${S3_BUCKET:-}"
 export S3_LAZ_PREFIX="${S3_LAZ_PREFIX:-laz/}"
 export S3_REGION="${S3_REGION:-eu-north-1}"
 export REGION="${REGION:-eu-north-1}"
 export CONDA_PACKAGES="$CONDA_PACKAGES"
 export EXTRA_REPOS="$EXTRA_REPOS"
+
+# Pass DATABASE_URL from the root-only file through the environment, never argv
+if [ -n "$DB_NAME" ]; then
+    DBENV_PY=\$(cat <<'PY'
+$DBENV_PY
+PY
+)
+    DATABASE_URL=\$(sudo /usr/bin/python3 -I -c "\$DBENV_PY" read $DB_ENV_FILE $DB_USER $DB_NAME)
+    export DATABASE_URL
+fi
 
 # Activate the correct Python env
 if [ -n "$CONDA_PACKAGES" ]; then
@@ -297,9 +347,8 @@ ENV_LINES="$ENV_LINES
 Environment=ENABLE_RATE_LIMIT=true"
 
 if [ -n "$DB_NAME" ]; then
-    DB_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
     ENV_LINES="$ENV_LINES
-Environment=DATABASE_URL=$DB_URL"
+EnvironmentFile=$DB_ENV_FILE"
 fi
 
 if [ -n "$S3_BUCKET" ]; then

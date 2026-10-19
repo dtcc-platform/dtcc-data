@@ -149,14 +149,17 @@ def extract_and_sort(download_dir: str, output_dir: str) -> tuple[int, int]:
 def run_ingestion(output_dir: str, database_url: str, laz_count: int, gpkg_count: int):
     """Run atlas creation scripts for any downloaded data."""
     script_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    # Pass the URL through the environment so it never appears in a process list
+    env = {**os.environ, "DATABASE_URL": database_url}
 
     if laz_count > 0:
         laz_dir = os.path.join(output_dir, "laz")
         print(f"\nIngesting {laz_count} LiDAR files...")
         subprocess.run(
             [sys.executable, os.path.join(script_dir, "create-atlas-lidar.py"),
-             laz_dir, "--database-url", database_url, "--create-tables"],
+             laz_dir, "--create-tables"],
             check=True,
+            env=env,
         )
 
     if gpkg_count > 0:
@@ -164,8 +167,9 @@ def run_ingestion(output_dir: str, database_url: str, laz_count: int, gpkg_count
         print(f"\nIngesting {gpkg_count} GPKG files...")
         subprocess.run(
             [sys.executable, os.path.join(script_dir, "create-atlas-gpkg.py"),
-             gpkg_dir, "--database-url", database_url, "--create-tables", "--workers", "0"],
+             gpkg_dir, "--create-tables", "--workers", "0"],
             check=True,
+            env=env,
         )
 
 
