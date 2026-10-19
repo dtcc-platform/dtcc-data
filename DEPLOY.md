@@ -102,7 +102,7 @@ Leave `DB_NAME` empty to skip PostgreSQL installation and database setup entirel
 |----------|---------|-------------|
 | `DB_NAME` | *(empty)* | Database name. Empty = no DB |
 | `DB_USER` | `dtcc` | Database user |
-| `DB_PASS` | `dtcc` | Database password |
+| `DB_PASS` | *(none)* | Database password; required when `DB_NAME` is set. Use letters and digits only: setup inserts it unescaped into SQL and `DATABASE_URL` |
 
 ### Optional: Systemd Extra Env Vars
 
@@ -136,7 +136,7 @@ PYTHON_EXTRAS=".[test]"
 S3_BUCKET=my-dtcc-bucket
 DB_NAME=dtcc_data
 DB_USER=dtcc
-DB_PASS=dtcc
+DB_PASS=<password>
 SYSTEMD_ENV="
 PYTHONPATH=/home/ubuntu/dtcc-data/src
 "
@@ -252,7 +252,7 @@ cd ~/dtcc-data && source .venv/bin/activate
 
 # Download and ingest (full pipeline)
 python src/download-geotorget.py <order-uuid> \
-  --database-url postgresql://dtcc:dtcc@localhost:5432/dtcc_data
+  --database-url postgresql://dtcc:<password>@localhost:5432/dtcc_data
 
 # Download only (no ingestion)
 python src/download-geotorget.py <order-uuid> --output-dir /data --no-ingest
